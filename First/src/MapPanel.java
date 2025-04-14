@@ -1,3 +1,25 @@
+/**
+ * @file    MapPanel.java
+ * @brief   Custom JPanel responsible for drawing the game map, explored areas, and player marker/direction.
+ *
+ * This class takes the game state from the RPG object and visually renders the map grid.
+ * It handles drawing based on whether the full map should be shown (debug mode) or only
+ * the explored areas, using the `exploredMap` data from the RPG class.
+ *
+ * @author  Jack Schulte
+ * @version 1.1
+ * @date    2025-04-14
+ *
+ * @copyright Copyright (c) 2025 Jack Schulte. All rights reserved.
+ * Strictly confidential and proprietary. Distribution, reproduction,
+ * or modification is strictly prohibited without prior written permission.
+ *
+ * @version History:
+ * - 1.1 (2025-04-14): Modified paintComponent to draw based on exploredMap and showFullMap flag. (J. Schulte)
+ * - 1.0 (2025-04-01): Initial version drawing the full map and player. (J. Schulte)
+ * // Add more versions as the file evolves
+ */
+
 import javax.swing.*;
 import java.awt.*;
 
@@ -10,7 +32,8 @@ public class MapPanel extends JPanel {
 
     // Define colors for different room types
     private final Color COLOR_EMPTY = Color.BLACK;
-    private final Color COLOR_WALL = Color.DARK_GRAY; // For cells adjacent to empty
+    private final Color COLOR_UNEXPLORED = new Color(20, 20, 20); // Dark color for unexplored but known to exist
+    private final Color COLOR_WALL = Color.DARK_GRAY; // For cells adjacent to empty (Maybe remove if using unexplored?)
     private final Color COLOR_NORMAL = Color.LIGHT_GRAY;
     private final Color COLOR_START = Color.CYAN; // Start room (original value 2)
     // NOTE: Boss also uses value 2. Need unique value in RPG.java if different color desired.
@@ -28,10 +51,10 @@ public class MapPanel extends JPanel {
         this.rpgGame = rpg;
         // Calculate preferred size based on map dimensions and tile size
         if (rpg != null && rpg.map != null && rpg.map.length > 0 && rpg.map[0].length > 0) {
-             this.setPreferredSize(new Dimension(rpg.map[0].length * TILE_SIZE + 2 * GRID_OFFSET_X, rpg.map.length * TILE_SIZE + 2 * GRID_OFFSET_Y));
+            this.setPreferredSize(new Dimension(rpg.map[0].length * TILE_SIZE + 2 * GRID_OFFSET_X, rpg.map.length * TILE_SIZE + 2 * GRID_OFFSET_Y));
         } else {
             // Default size if map is not ready
-             this.setPreferredSize(new Dimension(21 * TILE_SIZE + 2 * GRID_OFFSET_X, 21 * TILE_SIZE + 2 * GRID_OFFSET_Y));
+            this.setPreferredSize(new Dimension(21 * TILE_SIZE + 2 * GRID_OFFSET_X, 21 * TILE_SIZE + 2 * GRID_OFFSET_Y));
         }
         this.setBackground(COLOR_EMPTY); // Background for areas outside the map
     }
@@ -40,7 +63,7 @@ public class MapPanel extends JPanel {
     protected void paintComponent(Graphics g) {
         super.paintComponent(g); // Clears the panel
 
-        if (rpgGame == null || rpgGame.map == null) {
+        if (rpgGame == null || rpgGame.map == null || rpgGame.exploredMap == null) { // Added check for exploredMap
             g.setColor(Color.WHITE);
             g.drawString("Map not loaded...", 20, 30); // Placeholder text
             return; // Don't draw if map data isn't ready
@@ -48,6 +71,8 @@ public class MapPanel extends JPanel {
 
         int numRows = rpgGame.map.length;
         int numCols = rpgGame.map[0].length;
+        boolean showFull = rpgGame.isShowFullMap(); // Get debug flag
+        boolean[][] explored = rpgGame.getExploredMap(); // Get explored data
 
         // Draw the map grid
         for (int row = 0; row < numRows; row++) {
@@ -55,29 +80,49 @@ public class MapPanel extends JPanel {
                 int tileX = GRID_OFFSET_X + col * TILE_SIZE;
                 int tileY = GRID_OFFSET_Y + row * TILE_SIZE;
                 int roomType = rpgGame.map[row][col];
+                boolean isExplored = explored[row][col]; // Check if this tile is explored
 
-                Color roomColor = getRoomColor(roomType);
+                Color tileColor;
+                boolean drawBorder = false;
 
-                // Draw the room fill
-                g.setColor(roomColor);
+                // Determine tile color based on exploration and debug flag
+                if (showFull || isExplored) {
+                    // If showing full map OR this tile is explored
+                    if (roomType != 0) {
+                        // If it's a room (not empty space)
+                        tileColor = getRoomColor(roomType);
+                        drawBorder = true; // Draw border for non-empty rooms
+                    } else {
+                        // If it's empty space (within the map grid, but value 0)
+                        tileColor = COLOR_EMPTY; // Treat as empty background
+                    }
+                } else {
+                    // If not showing full map AND this tile is NOT explored
+                    tileColor = COLOR_EMPTY; // Draw as completely empty/black
+                    // Optional: Could use COLOR_UNEXPLORED if you want a different "fog of war" look
+                    // for explored adjacent areas vs totally unknown.
+                }
+
+                // Draw the tile fill
+                g.setColor(tileColor);
                 g.fillRect(tileX, tileY, TILE_SIZE, TILE_SIZE);
 
-                // Draw a border around non-empty rooms for definition
-                if (roomType != 0) {
-                     g.setColor(Color.DARK_GRAY); // Border color
-                     g.drawRect(tileX, tileY, TILE_SIZE -1 , TILE_SIZE -1);
+                // Draw a border if needed
+                if (drawBorder) {
+                    g.setColor(Color.DARK_GRAY); // Border color
+                    g.drawRect(tileX, tileY, TILE_SIZE - 1, TILE_SIZE - 1);
                 }
             }
         }
 
-        // Draw the player marker
+        // Draw the player marker (always drawn)
         int[] playerPos = rpgGame.getCurrentPos();
         if (playerPos != null && playerPos.length == 2) { // Add null and length check
             int playerRow = playerPos[0];
             int playerCol = playerPos[1];
 
-             // Ensure player position is within map bounds before drawing
-             if (playerRow >= 0 && playerRow < numRows && playerCol >= 0 && playerCol < numCols) {
+            // Ensure player position is within map bounds before drawing
+            if (playerRow >= 0 && playerRow < numRows && playerCol >= 0 && playerCol < numCols) {
                 int playerTileX = GRID_OFFSET_X + playerCol * TILE_SIZE;
                 int playerTileY = GRID_OFFSET_Y + playerRow * TILE_SIZE;
 
@@ -93,24 +138,24 @@ public class MapPanel extends JPanel {
                 int centerY = playerTileY + TILE_SIZE / 2;
                 int lineLength = TILE_SIZE / 3;
                 switch (rpgGame.getWayFacing()) {
-                      case 0: // North (Up)
-                           g.drawLine(centerX, centerY, centerX, centerY - lineLength);
-                           break;
-                      case 1: // East (Right)
-                           g.drawLine(centerX, centerY, centerX + lineLength, centerY);
-                           break;
-                      case 2: // South (Down)
-                           g.drawLine(centerX, centerY, centerX, centerY + lineLength);
-                           break;
-                      case 3: // West (Left)
-                           g.drawLine(centerX, centerY, centerX - lineLength, centerY);
-                           break;
-                 }
-             } else {
-                 System.err.println("Player position out of bounds: [" + playerRow + "," + playerCol + "]"); // Debug if needed
-             }
+                    case 0: // North (Up)
+                        g.drawLine(centerX, centerY, centerX, centerY - lineLength);
+                        break;
+                    case 1: // East (Right)
+                        g.drawLine(centerX, centerY, centerX + lineLength, centerY);
+                        break;
+                    case 2: // South (Down)
+                        g.drawLine(centerX, centerY, centerX, centerY + lineLength);
+                        break;
+                    case 3: // West (Left)
+                        g.drawLine(centerX, centerY, centerX - lineLength, centerY);
+                        break;
+                }
+            } else {
+                System.err.println("Player position out of bounds: [" + playerRow + "," + playerCol + "]"); // Debug if needed
+            }
         } else {
-             System.err.println("Player position is null or invalid."); // Debug if needed
+            System.err.println("Player position is null or invalid."); // Debug if needed
         }
     }
 
@@ -119,7 +164,7 @@ public class MapPanel extends JPanel {
         // Note: Start and Boss rooms share value '2' in the current RPG code.
         // Assign unique values in RPG.addEventsToRooms if you want different colors.
         switch (roomType) {
-            case 0: return COLOR_EMPTY;
+            case 0: return COLOR_EMPTY; // Should not happen if called correctly
             case 1: return COLOR_NORMAL;
             case 2: return COLOR_START; // Assuming 2 is primarily Start/Boss
             case 3: return COLOR_ENEMY_STD;
