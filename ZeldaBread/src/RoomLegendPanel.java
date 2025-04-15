@@ -3,16 +3,16 @@
  * @brief   Displays a legend of room types, counts, visited counts, and colors.
  * Text color changed to black for better readability.
  *
- * @author  Jack Schulte & Gemini
+ * @author  Jack Schulte 
  * @version 1.1.0
  * @date    2025-04-15
  *
- * @copyright Copyright (c) 2025 Jack Schulte & Gemini. All rights reserved.
+ * @copyright Copyright (c) 2025 Jack Schulte . All rights reserved.
  * Strictly confidential and proprietary. Distribution, reproduction,
  * or modification is strictly prohibited without prior written permission.
  *
  * @version History:
- * - 1.1.0 (2025-04-15): Changed text color from White to Black. (Gemini)
+ * - 1.1.0 (2025-04-15): Changed text color from White to Black.
  * - 1.0.0 (2025-04-15): Initial version. (J. Schulte)
  */
 

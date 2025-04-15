@@ -12,8 +12,8 @@
  * or modification is strictly prohibited without prior written permission.
  *
  * @version History:
- * - 1.2.0 (2025-04-15): Updated doDamage and use methods to accept Player object. (Gemini)
- * - 1.1.0 (2025-04-15): Modified to extend Item class. Removed redundant fields. Updated constructor. (Gemini)
+ * - 1.2.0 (2025-04-15): Updated doDamage and use methods to accept Player object.
+ * - 1.1.0 (2025-04-15): Modified to extend Item class. Removed redundant fields. Updated constructor.
  * - 1.0.0 (Original): Initial version. (J. Schulte)
  */
 

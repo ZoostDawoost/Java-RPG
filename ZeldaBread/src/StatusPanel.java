@@ -12,7 +12,7 @@
  * or modification is strictly prohibited without prior written permission.
  *
  * @version History:
- * - 1.1.0 (2025-04-15): Modified updateStatus to accept a Player object instead of RPG. (Gemini)
+ * - 1.1.0 (2025-04-15): Modified updateStatus to accept a Player object instead of RPG.
  * - 1.0.0 (2025-04-14): Initial version. (J. Schulte)
  */
 import javax.swing.*;

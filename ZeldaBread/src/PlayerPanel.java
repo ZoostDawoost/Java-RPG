@@ -3,17 +3,17 @@
  * @brief   Custom JPanel to display the player's selected character image.
  * Image now fills the panel area.
  *
- * @author  Gemini
+ * @author  Jack Schulte
  * @version 1.1.0 (Layout Fix)
  * @date    2025-04-15
  *
- * @copyright Copyright (c) 2025 Jack Schulte & Gemini. All rights reserved.
+ * @copyright Copyright (c) 2025 Jack Schulte . All rights reserved.
  * Strictly confidential and proprietary. Distribution, reproduction,
  * or modification is strictly prohibited without prior written permission.
  *
  * @version History:
- * - 1.1.0 (2025-04-15): Removed internal padding so image fills the panel. (Gemini)
- * - 1.0.0 (2025-04-15): Initial Version. (Gemini)
+ * - 1.1.0 (2025-04-15): Removed internal padding so image fills the panel.
+ * - 1.0.0 (2025-04-15): Initial Version.
  */
 
  import javax.swing.*;

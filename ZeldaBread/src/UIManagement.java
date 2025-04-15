@@ -3,19 +3,19 @@
  * @brief   Manages UI window, panels, layout, actions, key bindings, screen transitions.
  * Includes Room Legend Panel overlay.
  *
- * @author  Jack Schulte & AI Assistant & Gemini
+ * @author  Jack Schulte  
  * @version 1.5.1 (Fix Char Create Layout)
  * @date    2025-04-15
  *
- * @copyright Copyright (c) 2025 Jack Schulte & Gemini. All rights reserved.
+ * @copyright Copyright (c) 2025 Jack Schulte . All rights reserved.
  * Strictly confidential and proprietary. Distribution, reproduction,
  * or modification is strictly prohibited without prior written permission.
  *
  * @version History:
- * - 1.5.1 (2025-04-15): Fixed character creator screen by adding characterImageLabel and classDetailsPane to characterDescPanel layout. Added scroll pane to details. (Gemini)
- * - 1.5.0 (2025-04-15): Added RoomLegendPanel overlay toggled by F9. Used CardLayout for overlay effect in rightSidePanel. (Gemini)
- * - 1.4.1 (2025-04-15): Fixed layout for PlayerPanel/StatusPanel (BoxLayout). Increased rightSidePanel width. (Gemini)
- * - 1.4.0 (2025-04-15): Refactored for Player class. Added PlayerPanel. Updated layout. (Gemini)
+ * - 1.5.1 (2025-04-15): Fixed character creator screen by adding characterImageLabel and classDetailsPane to characterDescPanel layout. Added scroll pane to details.
+ * - 1.5.0 (2025-04-15): Added RoomLegendPanel overlay toggled by F9. Used CardLayout for overlay effect in rightSidePanel.
+ * - 1.4.1 (2025-04-15): Fixed layout for PlayerPanel/StatusPanel (BoxLayout). Increased rightSidePanel width.
+ * - 1.4.0 (2025-04-15): Refactored for Player class. Added PlayerPanel. Updated layout.
  * - (Previous history omitted)
  */
 import javax.swing.*;

@@ -3,17 +3,17 @@
  * @brief   Loads and provides access to game configuration from a JSON file.
  * Uses basic string parsing; assumes a specific JSON structure. Added sound mappings.
  *
- * @author  Gemini
+ * @author  Jack Schulte
  * @version 1.1.0
  * @date    2025-04-15
  *
- * @copyright Copyright (c) 2025 Jack Schulte & Gemini. All rights reserved.
+ * @copyright Copyright (c) 2025 Jack Schulte . All rights reserved.
  * Strictly confidential and proprietary. Distribution, reproduction,
  * or modification is strictly prohibited without prior written permission.
  *
  * @version History:
- * - 1.1.0 (2025-04-15): Added sound mapping structure, parsing, and retrieval. (Gemini)
- * - 1.0.0 (2025-04-15): Initial version. (Gemini)
+ * - 1.1.0 (2025-04-15): Added sound mapping structure, parsing, and retrieval.
+ * - 1.0.0 (2025-04-15): Initial version.
  */
 
  import java.awt.Color;

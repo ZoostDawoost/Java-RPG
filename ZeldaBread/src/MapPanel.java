@@ -3,17 +3,17 @@
  * @brief   Custom JPanel drawing the game map, centered within the panel.
  * Uses Board/Room objects. Gets player info from Player object. Uses config colors.
  *
- * @author  Jack Schulte & Gemini
+ * @author  Jack Schulte 
  * @version 1.4.1 (Fix)
  * @date    2025-04-15
  *
- * @copyright Copyright (c) 2025 Jack Schulte & Gemini. All rights reserved.
+ * @copyright Copyright (c) 2025 Jack Schulte . All rights reserved.
  * Strictly confidential and proprietary. Distribution, reproduction,
  * or modification is strictly prohibited without prior written permission.
  *
  * @version History:
- * - 1.4.1 (2025-04-15): Fixed type mismatch error when calling getRoomColor. Passed default hex string instead of Color object. (Gemini)
- * - 1.4.0 (2025-04-15): Implemented centering of map drawing within the panel. Removed fixed GRID_OFFSETs. Uses config colors. (Gemini)
+ * - 1.4.1 (2025-04-15): Fixed type mismatch error when calling getRoomColor. Passed default hex string instead of Color object.
+ * - 1.4.0 (2025-04-15): Implemented centering of map drawing within the panel. Removed fixed GRID_OFFSETs. Uses config colors.
  * - (Previous history omitted)
  */
 

@@ -4,17 +4,17 @@
  *
  * Centralizes default attributes and thematic naming conventions for each playable class in the game.
  *
- * @author  Jack Schulte & AI Assistant
+ * @author  Jack Schulte 
  * @version 1.1.0
  * @date    2025-04-14
  *
- * @copyright Copyright (c) 2025 Jack Schulte & AI Assistant. All rights reserved.
+ * @copyright Copyright (c) 2025 Jack Schulte . All rights reserved.
  * Strictly confidential and proprietary. Distribution, reproduction,
  * or modification is strictly prohibited without prior written permission.
  *
  * @version History:
- * - 1.1.0 (2025-04-14): Replaced female-coded names with gender-neutral, bread-themed alternatives. (AI Assistant)
- * - 1.0.0 (2025-04-14): Initial version. Created to store static class data (stats, names). (AI Assistant)
+ * - 1.1.0 (2025-04-14): Replaced female-coded names with gender-neutral, bread-themed alternatives.
+ * - 1.0.0 (2025-04-14): Initial version. Created to store static class data (stats, names).
  */
 
  import java.util.Arrays;

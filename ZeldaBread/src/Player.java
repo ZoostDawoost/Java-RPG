@@ -4,17 +4,17 @@
  * Encapsulates player stats, inventory, position, state, and actions.
  * Plays sounds on entering certain rooms and handles wall bump effects.
  *
- * @author  Jack Schulte & Gemini
+ * @author  Jack Schulte 
  * @version 1.2.0
  * @date    2025-04-15
  *
- * @copyright Copyright (c) 2025 Jack Schulte & Gemini. All rights reserved.
+ * @copyright Copyright (c) 2025 Jack Schulte . All rights reserved.
  * Strictly confidential and proprietary. Distribution, reproduction,
  * or modification is strictly prohibited without prior written permission.
  *
  * @version History:
- * - 1.2.0 (2025-04-15): Added HP/Energy deduction, sound playback, and UI update for wall bumps. (Gemini)
- * - 1.1.0 (2025-04-15): Added logic to play random shop welcome sound on entering SHOP room. (Gemini)
+ * - 1.2.0 (2025-04-15): Added HP/Energy deduction, sound playback, and UI update for wall bumps.
+ * - 1.1.0 (2025-04-15): Added logic to play random shop welcome sound on entering SHOP room.
  * - 1.0.0 (2025-04-15): Initial Version. (Jack Schulte)
  */
 

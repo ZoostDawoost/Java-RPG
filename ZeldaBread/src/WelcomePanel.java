@@ -3,16 +3,16 @@
  * @brief   Custom JPanel for the welcome screen. Displays a scaled image, welcome text,
  * and buttons to select the number of players. Adjusted image size and layout.
  *
- * @author  AI Assistant
+ * @author  Jack Schulte
  * @version 1.0.2
  * @date    2025-04-14
  *
- * @copyright Copyright (c) 2025 Jack Schulte & AI Assistant. All rights reserved.
+ * @copyright Copyright (c) 2025 Jack Schulte . All rights reserved.
  *
  * @version History:
- * - 1.0.2 (2025-04-14): Increased image size, adjusted layout to reduce excess vertical space. (AI Assistant)
- * - 1.0.1 (2025-04-14): Added image scaling to fit the panel better. (AI Assistant)
- * - 1.0.0 (2025-04-14): Initial version. (AI Assistant)
+ * - 1.0.2 (2025-04-14): Increased image size, adjusted layout to reduce excess vertical space.
+ * - 1.0.1 (2025-04-14): Added image scaling to fit the panel better.
+ * - 1.0.0 (2025-04-14): Initial version.
  */
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;

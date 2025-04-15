@@ -3,17 +3,17 @@
  * @brief   Represents the central game controller.
  * Holds the game board, manages players, orchestrates map generation using config values.
  *
- * @author  Jack Schulte & AI Assistant & Gemini
+ * @author  Jack Schulte  
  * @version 1.5.0 (Config Integration)
  * @date    2025-04-15
  *
- * @copyright Copyright (c) 2025 Jack Schulte & Gemini. All rights reserved.
+ * @copyright Copyright (c) 2025 Jack Schulte . All rights reserved.
  * Strictly confidential and proprietary. Distribution, reproduction,
  * or modification is strictly prohibited without prior written permission.
  *
  * @version History:
- * - 1.5.0 (2025-04-15): Integrated ConfigLoader to use JSON values for room event chances/counts. Removed hardcoded probabilities/divisors. (Gemini)
- * - 1.4.0 (2025-04-15): Refactored RPG to be central controller. Player data moved to Player class. players list now holds Player objects. Increased MAP_SIZE to 35. (Gemini)
+ * - 1.5.0 (2025-04-15): Integrated ConfigLoader to use JSON values for room event chances/counts. Removed hardcoded probabilities/divisors.
+ * - 1.4.0 (2025-04-15): Refactored RPG to be central controller. Player data moved to Player class. players list now holds Player objects. Increased MAP_SIZE to 35.
  * - (Previous history omitted)
  */
 import javax.imageio.ImageIO;
