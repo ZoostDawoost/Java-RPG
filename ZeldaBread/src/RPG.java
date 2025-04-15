@@ -1,12 +1,12 @@
 /**
  * @file    RPG.java
  * @brief   Represents game state for a player OR the central dungeon map structure.
- * Handles player stats, inventory, position, exploration/visited status, selected character image,
+ * Handles player stats, inventory, position, exploration/visited status, selected character image, character name,
  * map generation logic (when used as the central map object), static management of character image sets,
- * and serves as the application entry point.
+ * and serves as the application entry point (including window setup like centering and initial audio playback).
  *
  * @author  Jack Schulte & AI Assistant
- * @version 1.0.8
+ * @version 1.1.5 (Modified)
  * @date    2025-04-14
  *
  * @copyright Copyright (c) 2025 Jack Schulte & AI Assistant. All rights reserved.
@@ -14,6 +14,13 @@
  * or modification is strictly prohibited without prior written permission.
  *
  * @version History:
+ * - 1.1.5 (2025-04-14): Moved audio playback to occur *after* the main frame is set to visible. (Gemini)
+ * - 1.1.4 (2025-04-14): Added audio playback for "game-intro-01.mp3" on startup using javax.sound.sampled. (AI Assistant)
+ * - 1.1.3 (2025-04-14): Switched icon loading to use a PNG file (bread-man-32.png) with ImageIO.read(). (AI Assistant)
+ * - 1.1.2 (2025-04-14): Reverted icon loading to Toolkit + MediaTracker with improved waiting and error checking. (AI Assistant)
+ * - 1.1.1 (2025-04-14): Replaced icon loading logic with ImageIO.read() for better .ico handling. (AI Assistant)
+ * - 1.1.0 (2025-04-14): Added window centering on startup (`setLocationRelativeTo`). Attempted fix for icon loading error using ImageIcon as primary loader. (AI Assistant)
+ * - 1.0.9 (2025-04-14): Added characterName field. Refactored class stat assignment to use CharacterClassInfo. Removed static class templates. (AI Assistant)
  * - 1.0.8 (2025-04-14): Added static image set selection and instance variable/methods to store selected character ImageIcon. (AI Assistant)
  * - 1.0.7 (2025-04-14): Added public static getters for class template HP/Energy to fix access issue from UIManagement. (AI Assistant)
  * - 1.0.6 (2025-04-14): Added Score, Energy, HP stats. Implemented energy decrement on move. Added dialogue trigger on move. Defined stats per class. (AI Assistant)
@@ -23,6 +30,8 @@
  * - 1.0.2 (2025-04-14): Added exploredMap tracking, exploreAround logic, and toggleMapVisibility debug feature. (J. Schulte)
  * - 1.0.1 (2025-04-01): Initial version creation with basic map generation and player classes. (J. Schulte)
  */
+import javax.imageio.ImageIO; // Needed for reading PNG
+import javax.sound.sampled.*; // Needed for audio playback
 import javax.swing.*;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -30,9 +39,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import java.awt.Image;
-import java.awt.MediaTracker;
-import java.awt.Toolkit;
+import java.awt.MediaTracker; // Keep import, just in case, but not used for PNG
+import java.awt.Toolkit;     // Keep import, just in case, but not used for PNG
+import java.awt.image.BufferedImage; // Needed for ImageIO result
+import java.io.BufferedInputStream; // Recommended for audio stream reading
+import java.io.InputStream;          // For reading resource streams
 import java.net.URL;
+import java.io.IOException; // Needed for ImageIO and Audio exceptions
+import java.io.File;      // If accessing file system directly (use getResourceAsStream instead)
 
 
 public class RPG {
@@ -49,11 +63,11 @@ public class RPG {
 
     // Player Stats & Info (Instance variables for each player)
     private int playerNum;          // Assigned player number (if needed)
-    private String name;            // Player name (if used)
+    private String characterName;   // Player's chosen/assigned name
     private String nameClass;       // Assigned class name
     private ImageIcon selectedCharacterIcon; // Image chosen for this player
-    private int vig = 0;            // Base vitality (affects max HP) - kept for potential future use
-    private int agt = 0;            // Base agility (affects max Energy) - kept for potential future use
+    private int vig = 0;            // Base vitality
+    private int agt = 0;            // Base agility
     private int def = 0;
     private int str = 0;
     private int dex = 0;
@@ -81,24 +95,10 @@ public class RPG {
 
     // Static initializer block to select the image set at startup
     static {
-        // Randomly select a set
-        // currentImageSet = IMAGE_SETS.get(ran.nextInt(IMAGE_SETS.size()));
-        // System.out.println("Randomly selected image set: " + currentImageSet);
-
         // *** TEMPORARY OVERRIDE ***
         currentImageSet = "speedracer";
         System.out.println("!!! OVERRIDE: Using image set: " + currentImageSet + " !!!");
     }
-
-
-    // Class Definitions (Static templates with HP/Energy) - Kept Private
-    // Format: Name, Vigor, Defense, Strength, Dexterity, Agility, Luck, MaxHP, MaxEnergy, Slot1, Slot2, Slot3, Slot4
-    private static final RPG knight =   new RPG("Knight",   11, 12, 11, 10, 8,  8, 120, 80,  InvSlot.empty, InvSlot.empty, InvSlot.empty, InvSlot.empty);
-    private static final RPG sentinel = new RPG("Sentinel", 10, 13, 9,  11, 7, 10, 150, 50,  InvSlot.empty, InvSlot.empty, InvSlot.empty, InvSlot.empty);
-    private static final RPG assassin = new RPG("Assassin", 9,  8,  11, 12, 13, 7,  80,  120, InvSlot.empty, InvSlot.empty, InvSlot.empty, InvSlot.empty);
-    // Added Wizard Class
-    private static final RPG wizard =   new RPG("Wizard",   8,  7,  8,  13, 12, 12, 70,  150, InvSlot.empty, InvSlot.empty, InvSlot.empty, InvSlot.empty);
-    private static final RPG caveman =  new RPG("Caveman",  10, 10, 10, 10, 10, 10, 100, 100, InvSlot.empty, InvSlot.empty, InvSlot.empty, InvSlot.empty);
 
 
     // Default constructor: Used for creating player objects AND the central map object
@@ -122,92 +122,134 @@ public class RPG {
         this.wayFacing = 0; // Default facing North
         this.score = 0; // Start score at 0
         this.selectedCharacterIcon = null; // No icon initially
+        this.characterName = "Adventurer"; // Default name
+        // Initialize inventory slots to empty
+        this.invSlot1 = InvSlot.empty;
+        this.invSlot2 = InvSlot.empty;
+        this.invSlot3 = InvSlot.empty;
+        this.invSlot4 = InvSlot.empty;
     }
 
-    // Private constructor: Used ONLY for creating static class templates
-    private RPG(String nameClass, int vig, int def, int str, int dex, int agt, int luck, int maxHp, int maxEnergy, InvSlot invSlot1, InvSlot invSlot2, InvSlot invSlot3, InvSlot invSlot4) {
-        // Don't call default constructor here, templates don't need maps initialized
-        this.nameClass = nameClass;
-        this.vig = vig;
-        this.def = def;
-        this.str = str;
-        this.dex = dex;
-        this.agt = agt; // Store agility base stat
-        this.luck = luck;
-        this.maxHp = maxHp; // Use provided max HP
-        this.maxEnergy = maxEnergy; // Use provided max Energy
-        this.hp = maxHp; // Set initial HP to max for template (copied later)
-        this.energy = maxEnergy; // Set initial Energy to max for template (copied later)
-        this.invSlot1 = invSlot1;
-        this.invSlot2 = invSlot2;
-        this.invSlot3 = invSlot3;
-        this.invSlot4 = invSlot4;
-        // No position, explored, visited maps, or icon for templates
-    }
 
    // --- Application Entry Point ---
    public static void main(String[] args) {
-       SwingUtilities.invokeLater(() -> {
-           UIManagement.setupUI(); // Set up the main UI components first
+       // --- Play Startup Sound LATER ---
+       // Moved playback call to after frame.setVisible(true)
 
-           // --- Robust Window Icon Setting using MediaTracker ---
-           // Try to load the icon using the ClassLoader, assuming 'icons' folder is in the classpath root (e.g., inside src/ and copied to bin/)
-           URL iconURL = RPG.class.getClassLoader().getResource("icons/bread-man.ico"); // Keep window icon separate
+       SwingUtilities.invokeLater(() -> { //
+           // Setup UI components first
+           UIManagement.setupUI(); //
+
+           // --- Window Icon Setting Attempt (Using PNG with ImageIO) ---
+           String iconFileName = "bread-man-32.png"; // Choose an appropriate size
+           URL iconURL = RPG.class.getClassLoader().getResource("icons/" + iconFileName); //
 
            if (iconURL != null) {
-               // Toolkit is generally fine for standard formats like ico used as window icons
-               Image iconImage = Toolkit.getDefaultToolkit().getImage(iconURL);
-               if (iconImage != null) {
-                   // Use MediaTracker to wait for the image to load fully
-                   MediaTracker tracker = new MediaTracker(new JPanel()); // Need a component for the tracker
-                   tracker.addImage(iconImage, 0); // Add image with ID 0
-                   try {
-                       System.out.println("Waiting for window icon image to load...");
-                       tracker.waitForID(0); // Wait for image with ID 0 to load
-                       System.out.println("Icon image loading status: " + tracker.statusID(0, true));
-
-                       if (!tracker.isErrorID(0)) { // Check for loading errors
-                            UIManagement.frame.setIconImage(iconImage);
-                            System.out.println("Window icon loaded and set successfully from: " + iconURL);
-                       } else {
-                            System.err.println("Error loading icon: MediaTracker reported an error for ID 0.");
-                       }
-                   } catch (InterruptedException e) {
-                       System.err.println("Error loading icon: MediaTracker wait was interrupted.");
-                       Thread.currentThread().interrupt(); // Restore interrupt status
-                   } catch (Exception e) {
-                       // Catch potential exceptions during image loading/decoding tracked by MediaTracker
-                       System.err.println("Exception occurred while tracking/loading icon from URL: " + iconURL);
-                       e.printStackTrace();
+               System.out.println("Found icon resource at: " + iconURL);
+               try {
+                   // Use ImageIO.read() for PNG files - generally reliable
+                   BufferedImage iconImage = ImageIO.read(iconURL); //
+                   if (iconImage != null) {
+                       // Set the image directly
+                       UIManagement.frame.setIconImage(iconImage); //
+                       System.out.println("Window icon '" + iconFileName + "' loaded and set successfully using ImageIO.");
+                   } else {
+                       System.err.println("ImageIO.read returned null for the icon URL: " + iconURL + ". Check file integrity/format.");
                    }
-               } else {
-                   // This case might happen if Toolkit couldn't decode the URL/format
-                   System.err.println("Error loading icon: Toolkit returned null image from URL: " + iconURL);
+               } catch (IOException e) {
+                   System.err.println("IOException while reading icon using ImageIO from URL: " + iconURL);
+                   e.printStackTrace(); // Print stack trace for detailed debugging
+               } catch (Exception e) {
+                   // Catch other potential runtime exceptions during image loading/decoding
+                   System.err.println("Unexpected error loading icon using ImageIO from URL: " + iconURL);
+                   e.printStackTrace();
                }
            } else {
-               // Only print error if the resource wasn't found by the ClassLoader
-               System.err.println("Error loading icon: Resource 'icons/bread-man.ico' not found in classpath.");
-               // No fallback attempts here - if getResource fails, the setup is likely wrong.
+               // Resource URL was not found by the ClassLoader
+               System.err.println("Error loading icon: Resource 'icons/" + iconFileName + "' not found in classpath. Ensure it's in the correct 'icons' folder relative to the classpath root.");
            }
            // --- End Icon Setting ---
 
-           UIManagement.welcomeScreen(); // Show the initial welcome screen
-           UIManagement.frame.setVisible(true); // Make the frame visible *after* setup and icon attempt
+           // --- Center Window ---
+           UIManagement.frame.setLocationRelativeTo(null); //
+           System.out.println("Centering window on screen.");
+
+           // Show the initial welcome screen
+           UIManagement.welcomeScreen(); //
+
+           // Make the frame visible LAST
+           UIManagement.frame.setVisible(true); //
+           System.out.println("Frame set to visible.");
+
+           // --- Play Startup Sound NOW ---
+           // IMPORTANT: Ensure the 'audio' folder is in your project's classpath
+           // (e.g., inside the 'src' or a 'resources' folder that gets included in the build)
+           playAudio("audio/game-intro-01.wav"); // Moved here
+           // --- End Startup Sound ---
        });
    }
+
+    // --- Audio Playback Method ---
+    public static void playAudio(String resourcePath) { //
+        try {
+            // Use getResourceAsStream to load from classpath
+            InputStream audioSrc = RPG.class.getClassLoader().getResourceAsStream(resourcePath); //
+            if (audioSrc == null) {
+                System.err.println("Audio resource not found: " + resourcePath);
+                return;
+            }
+            // Wrap in BufferedInputStream for efficiency
+            InputStream bufferedIn = new BufferedInputStream(audioSrc); //
+            AudioInputStream audioStream = AudioSystem.getAudioInputStream(bufferedIn); //
+            Clip clip = AudioSystem.getClip(); //
+            clip.open(audioStream);
+            clip.start(); // Play the sound once
+            System.out.println("Playing audio: " + resourcePath);
+
+            // Optional: Add a listener to close resources when done
+            clip.addLineListener(event -> {
+                if (event.getType() == LineEvent.Type.STOP) { //
+                    try {
+                         clip.close();
+                         audioStream.close();
+                         bufferedIn.close();
+                         audioSrc.close(); // Close original stream too
+                         System.out.println("Audio resources closed for: " + resourcePath);
+                    } catch (IOException e) {
+                         System.err.println("IOException closing audio resources: " + e.getMessage());
+                         e.printStackTrace();
+                    }
+                }
+            });
+
+        } catch (UnsupportedAudioFileException e) { //
+            System.err.println("Unsupported audio file format for: " + resourcePath + " - " + e.getMessage());
+            e.printStackTrace();
+        } catch (IOException e) { //
+            System.err.println("IOException loading/playing audio: " + resourcePath + " - " + e.getMessage());
+            e.printStackTrace();
+        } catch (LineUnavailableException e) { //
+            System.err.println("Audio line unavailable for playback: " + resourcePath + " - " + e.getMessage());
+            e.printStackTrace();
+        } catch (Exception e) {
+            System.err.println("Unexpected error playing audio: " + resourcePath + " - " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
 
 
     // --- Getters ---
     // Instance Getters (for Player objects)
-    public int getVig() { return this.vig; } // Added getter for updateDescription
-    public int getDef() { return this.def; } // Added getter
-    public int getAgt() { return this.agt; } // Added getter
-    public int getLuck() { return this.luck; } // Added getter
+    public int getVig() { return this.vig; }
+    public int getDef() { return this.def; }
+    public int getAgt() { return this.agt; }
+    public int getLuck() { return this.luck; }
     public int getStr() { return this.str; }
     public int getDex() { return this.dex; }
     public int[] getCurrentPos() { return this.currentPos; }
     public int getWayFacing() { return this.wayFacing; }
     public String getClassName() { return this.nameClass; }
+    public String getCharacterName() { return this.characterName; } // Getter for name
     public ImageIcon getSelectedCharacterIcon() { return this.selectedCharacterIcon; } // Getter for icon
     public boolean[][] getExploredMap() { return this.exploredMap; }
     public boolean[][] getVisitedMap() { return this.visitedMap; }
@@ -223,22 +265,13 @@ public class RPG {
     public static ArrayList<RPG> getPlayers() { return players; }
     public static boolean isShowFullMap() { return showFullMap; }
 
-    // --- Public Static Getters for Class Template Stats ---
-    // Added getters for ALL stats for use in the description panel
-    public static RPG getKnightTemplate() { return knight; }
-    public static RPG getSentinelTemplate() { return sentinel; }
-    public static RPG getAssassinTemplate() { return assassin; }
-    public static RPG getWizardTemplate() { return wizard; } // Added Wizard getter
-    public static RPG getCavemanTemplate() { return caveman; }
-
 
     // --- Setters ---
     // Instance Setters (for Player objects)
     public void setCurrentPos(int[] x) { this.currentPos = x; }
     public void setWayFacing(int x) { this.wayFacing = x; }
     public void setSelectedCharacterIcon(ImageIcon icon) { this.selectedCharacterIcon = icon; } // Setter for icon
-    // No direct setters for explored/visited, modified by move/explore methods
-    // Add setters for stats if needed later (e.g., takeDamage, restoreEnergy)
+    public void setCharacterName(String name) { this.characterName = (name != null && !name.trim().isEmpty()) ? name : "Adventurer"; } // Setter for name
     public void setHp(int hp) { this.hp = Math.max(0, Math.min(hp, this.maxHp)); }
     public void setEnergy(int energy) { this.energy = Math.max(0, Math.min(energy, this.maxEnergy)); }
     public void addScore(int points) { this.score += points; }
@@ -249,9 +282,9 @@ public class RPG {
 
 
     // --- Player Management (Static Methods) ---
-    public static void modPlayerIndex() { playerIndex++; }
+    public static void modPlayerIndex() { playerIndex++; } //
 
-    public static void createPlayers() {
+    public static void createPlayers() { //
         players.clear(); // Clear previous players if any
         for (int i = 0; i < numPlayers; i++) {
             players.add(new RPG()); // Add new player objects (uses default constructor)
@@ -260,53 +293,66 @@ public class RPG {
         resetPlayerIndex(); // Reset index for class assignment
     }
 
-    // Assigns CLASS STATS. Icon is assigned separately via setSelectedCharacterIcon
-    public static void assignClass(int pIndex, String className) {
+    /**
+     * Assigns CLASS STATS to a player object based on the selected className.
+     * Uses the CharacterClassInfo module to retrieve base stats.
+     * Icon and Name are assigned separately via their respective setters.
+     *
+     * @param pIndex    The index of the player in the static players list.
+     * @param className The name of the class selected (e.g., "Knight").
+     */
+    public static void assignClass(int pIndex, String className) { //
         if (pIndex < 0 || pIndex >= players.size()) {
             System.err.println("Error: Invalid player index for class assignment: " + pIndex);
             return;
         }
 
         RPG targetPlayer = players.get(pIndex); // Get the player object from the list
-        RPG sourceClass = null;
+        CharacterClassInfo.BaseStats sourceStats = CharacterClassInfo.getStats(className); // Get stats from new module
 
-        // Find the correct static class template
-        switch (className) {
-            case "Knight":   sourceClass = knight; break;
-            case "Sentinel": sourceClass = sentinel; break;
-            case "Assassin": sourceClass = assassin; break;
-            case "Wizard":   sourceClass = wizard; break; // Added Wizard
-            case "Caveman":  sourceClass = caveman; break;
-            default:
-                System.err.println("Error: Unknown class name: " + className);
-                return;
+        if (sourceStats == null) {
+             System.err.println("Error: Unknown class name or stats not found for: " + className);
+             // Assign some default safe stats? Or leave as is? Leaving as is for now.
+             targetPlayer.nameClass = "Unknown";
+             targetPlayer.maxHp = 50;
+             targetPlayer.maxEnergy = 50;
+             targetPlayer.hp = 50;
+             targetPlayer.energy = 50;
+             targetPlayer.score = 0;
+             // Ensure inventory is empty too
+             targetPlayer.invSlot1 = InvSlot.empty;
+             targetPlayer.invSlot2 = InvSlot.empty;
+             targetPlayer.invSlot3 = InvSlot.empty;
+             targetPlayer.invSlot4 = InvSlot.empty;
+             return;
         }
 
-        // Copy stats from the template to the player object
-        targetPlayer.nameClass = sourceClass.nameClass;
-        targetPlayer.vig = sourceClass.vig;
-        targetPlayer.def = sourceClass.def;
-        targetPlayer.str = sourceClass.str;
-        targetPlayer.dex = sourceClass.dex;
-        targetPlayer.agt = sourceClass.agt;
-        targetPlayer.luck = sourceClass.luck;
-        targetPlayer.maxHp = sourceClass.maxHp;       // Copy max HP
-        targetPlayer.maxEnergy = sourceClass.maxEnergy; // Copy max Energy
+        // Copy stats from the CharacterClassInfo to the player object
+        targetPlayer.nameClass = className; // Store the class name itself
+        targetPlayer.vig = sourceStats.VIG;
+        targetPlayer.def = sourceStats.DEF;
+        targetPlayer.str = sourceStats.STR;
+        targetPlayer.dex = sourceStats.DEX;
+        targetPlayer.agt = sourceStats.AGT;
+        targetPlayer.luck = sourceStats.LUCK;
+        targetPlayer.maxHp = sourceStats.MAX_HP;       // Copy max HP
+        targetPlayer.maxEnergy = sourceStats.MAX_ENERGY; // Copy max Energy
         targetPlayer.hp = targetPlayer.maxHp;       // Set current HP to max
         targetPlayer.energy = targetPlayer.maxEnergy; // Set current Energy to max
         targetPlayer.score = 0;                     // Initialize score
-        targetPlayer.invSlot1 = sourceClass.invSlot1; // Should ideally clone items if mutable
-        targetPlayer.invSlot2 = sourceClass.invSlot2;
-        targetPlayer.invSlot3 = sourceClass.invSlot3;
-        targetPlayer.invSlot4 = sourceClass.invSlot4;
-        // ICON IS SET SEPARATELY by UIManagement using setSelectedCharacterIcon
+        // Reset inventory slots (could be based on class later)
+        targetPlayer.invSlot1 = InvSlot.empty;
+        targetPlayer.invSlot2 = InvSlot.empty;
+        targetPlayer.invSlot3 = InvSlot.empty;
+        targetPlayer.invSlot4 = InvSlot.empty;
+        // NAME AND ICON ARE SET SEPARATELY by UIManagement
 
         System.out.println("Player " + (pIndex + 1) + " assigned class: " + className + " (HP: " + targetPlayer.maxHp + ", Energy: " + targetPlayer.maxEnergy + ")");
     }
 
 
     // --- Map Building Logic (Instance Methods - call on the central map object) ---
-    public void buildMap() {
+    public void buildMap() { //
         // Modifies this instance's map array
         int mapSize = this.map.length; // Use size of the instance's map
         // Reset map to 0
@@ -326,7 +372,7 @@ public class RPG {
 
         // Room generation loop (operates on this.map)
         while (rooms < 50) { // Target room count
-            Collections.shuffle(roomList, ran);
+            Collections.shuffle(roomList, ran); //
             if (roomList.isEmpty()) break; // Should not happen ideally
 
             int[] currentRoom = roomList.get(0);
@@ -415,12 +461,12 @@ public class RPG {
             for (int c = 0; c < mapSize; c++) {
                 // Add rooms of type '1' (basic generated rooms) to the available list
                 // Exclude the starting room itself
-                if (this.map[r][c] == 1 && !(r == startRow && c == startCol)) {
+                if (this.map[r][c] == 1 && !(r == startRow && c == startCol)) { //
                     availableRooms.add(new int[]{r, c});
                 }
             }
         }
-        Collections.shuffle(availableRooms, ran);
+        Collections.shuffle(availableRooms, ran); //
 
         // Simplified event placement logic (adjust percentages/counts as needed)
         int numRooms = availableRooms.size();
@@ -480,7 +526,7 @@ public class RPG {
         if (this.currentPos == null || this.currentPos[0] < 0) return false; // Not initialized
         if (this.energy <= 0) { // Check for energy
             System.out.println("Not enough energy to move!");
-            UIManagement.addDialogue("Not enough energy to move!");
+            UIManagement.addDialogue("Not enough energy to move!"); //
             return false;
         }
 
@@ -506,19 +552,19 @@ public class RPG {
             this.setEnergy(this.energy - 1); // Decrease energy
 
             int roomType = worldMap[nextRow][nextCol];
-            String roomDesc = getRoomDescription(roomType);
+            String roomDesc = getRoomDescription(roomType); //
             System.out.println("Player moved to [" + nextRow + ", " + nextCol + "]. Room Type: " + roomDesc + ". Energy: " + this.energy);
             UIManagement.addDialogue("Entered " + roomDesc + "."); // Add dialogue message
 
             // Update UI after successful move
-            UIManagement.updateGameStatus(this);
+            UIManagement.updateGameStatus(this); //
 
             // Trigger room-specific events here later...
 
             return true;
         } else {
             System.out.println("Cannot move into [" + nextRow + ", " + nextCol + "]");
-             UIManagement.addDialogue("Cannot move that way.");
+             UIManagement.addDialogue("Cannot move that way."); //
             return false;
         }
     }
@@ -547,7 +593,7 @@ public class RPG {
                 if (nr >= 0 && nr < this.exploredMap.length && nc >= 0 && nc < this.exploredMap[0].length) {
                     // Only explore if it's a room in the actual world map
                     if(nr >= 0 && nr < worldMap.length && nc >= 0 && nc < worldMap[0].length && worldMap[nr][nc] != 0) {
-                       this.exploredMap[nr][nc] = true;
+                       this.exploredMap[nr][nc] = true; //
                     }
                 }
             }
@@ -555,28 +601,34 @@ public class RPG {
     }
 
     // --- Static Map Toggle ---
-    public static void toggleMapVisibility() {
+    public static void toggleMapVisibility() { //
         showFullMap = !showFullMap;
         System.out.println("Map visibility toggled. Show full map: " + showFullMap);
         // Need to trigger UI update if a player object is available
         if (!players.isEmpty()) {
-           UIManagement.updateGameStatus(players.get(0)); // Update UI for player 0 view
+           // Ensure UI updates happen on the Event Dispatch Thread
+           SwingUtilities.invokeLater(() -> { //
+               // Pass the current player (assuming player 0 for view updates)
+               if (players.size() > 0 && players.get(0) != null) { // Add null check
+                   UIManagement.updateGameStatus(players.get(0));
+               }
+           });
         }
     }
 
    // --- Helper to get room description ---
-   public static String getRoomDescription(int roomType) {
+   public static String getRoomDescription(int roomType) { //
        switch (roomType) {
            case 0: return "Empty Space"; // Should not happen in normal movement
            case 1: return "Corridor"; // Should not happen if events are placed correctly
-           case 2: return "Starting Room";
-           case 3: return "Enemy Room";
-           case 4: return "Difficult Enemy Room";
-           case 5: return "Shop";
-           case 6: return "Smithy";
-           case 7: return "Treasure Room";
-           case 8: return "Plain Room";
-           case 9: return "Shrine";
+           case 2: return "Starting Room"; //
+           case 3: return "Enemy Room"; //
+           case 4: return "Difficult Enemy Room"; //
+           case 5: return "Shop"; //
+           case 6: return "Smithy"; //
+           case 7: return "Treasure Room"; //
+           case 8: return "Plain Room"; //
+           case 9: return "Shrine"; //
            case 10: return "Boss Room"; // Added Boss Room
            default: return "Unknown Room (" + roomType + ")";
        }
@@ -584,7 +636,7 @@ public class RPG {
 
 
     // --- Print map (for debugging, operates on instance's map) ---
-     public void printMap(String title) {
+     public void printMap(String title) { //
          System.out.println("\n--- " + title + " ---");
          int size = this.map.length;
          for (int i = 0; i < size; i++) {
@@ -596,7 +648,7 @@ public class RPG {
          System.out.println("-------------------");
      }
       // --- Print boolean map (for debugging explored/visited) ---
-      public void printBooleanMap(String title, boolean[][] boolMap) {
+      public void printBooleanMap(String title, boolean[][] boolMap) { //
           System.out.println("\n--- " + title + " ---");
           int size = boolMap.length;
           for (int i = 0; i < size; i++) {
