@@ -6,11 +6,9 @@
     "configurations": [
         {
             "type": "java",
-            "name": "Run Zelda RPG",
+            "name": "Run RPG",
             "request": "launch",
-            "mainClass": "RPG",
-			"project": "ZeldaBread",
-			
-        }
+            "mainClass": "RPG"
+        },
     ]
 }
