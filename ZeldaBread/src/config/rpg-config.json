@@ -1,0 +1,50 @@
+{
+    "room_settings": {
+      "ENEMY_ROOM": {
+        "color": "#FF0000",
+        "event_chance_percent": 30
+      },
+      "DIFFICULT_ENEMY_ROOM": {
+        "color": "#8B0000",
+        "event_divisor": 12,
+        "event_max_count": 20
+      },
+      "SHOP": {
+        "color": "#FFFF00",
+        "event_divisor": 25,
+        "event_max_count": 6
+      },
+      "SMITHY": {
+        "color": "#FFA500",
+        "event_divisor": 30,
+        "event_max_count": 4
+      },
+      "TREASURE_ROOM": {
+        "color": "#00FF00",
+        "event_divisor": 18,
+        "event_max_count": 10
+      },
+      "SHRINE": {
+        "color": "#0000FF",
+        "event_divisor": 20,
+        "event_max_count": 8
+      },
+      "BOSS_ROOM": {
+        "color": "#FF00FF",
+        "event_divisor": 60,
+        "event_max_count": 3
+      },
+      "START_ROOM": {
+         "color": "#00FFFF"
+      },
+       "PLAIN_ROOM": {
+         "color": "#FFFFFF"
+      },
+       "CORRIDOR": {
+          "color": "#D3D3D3"
+       },
+        "EXPLORED_NEUTRAL": {
+           "color": "#696969"
+        }
+    }
+  }

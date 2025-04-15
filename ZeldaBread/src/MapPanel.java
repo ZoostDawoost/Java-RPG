@@ -1,17 +1,10 @@
 /**
  * @file    MapPanel.java
- * @brief   Custom JPanel responsible for drawing the game map, player, and handling visibility.
- * Uses central map data and player-specific visited/explored data. Handles dynamic map sizes.
- *
- * Renders the map based on game state:
- * - Full map mode (F8): Shows all rooms and their colors.
- * - Normal mode:
- * - Shows visited rooms with their actual color.
- * - Shows explored but not visited rooms with a neutral color (outline).
- * - Hides unexplored areas.
+ * @brief   Custom JPanel drawing the game map, centered within the panel.
+ * Uses Board/Room objects. Gets player info from Player object. Uses config colors.
  *
  * @author  Jack Schulte & Gemini
- * @version 1.1.0 (Modified)
+ * @version 1.4.1 (Fix)
  * @date    2025-04-15
  *
  * @copyright Copyright (c) 2025 Jack Schulte & Gemini. All rights reserved.
@@ -19,12 +12,9 @@
  * or modification is strictly prohibited without prior written permission.
  *
  * @version History:
- * - 1.1.0 (2025-04-15): Removed hardcoded map dimensions in constructor; relies on dynamic sizing from RPG map. Adjusted preferred size calculation. (Gemini)
- * - 1.0.4 (2025-04-14): Updated to use central RPG map and player-specific explored/visited state. (AI Assistant)
- * - 1.0.3 (2025-04-14): Implemented visitedMap logic. (AI Assistant)
- * - 1.0.2 (2025-04-14): Updated paintComponent to hide room color until explored. (AI Assistant)
- * - 1.0.1 (2025-04-14): Modified paintComponent for exploredMap/showFullMap. (J. Schulte)
- * - 1.0.0 (2025-04-01): Initial version drawing the full map and player. (J. Schulte)
+ * - 1.4.1 (2025-04-15): Fixed type mismatch error when calling getRoomColor. Passed default hex string instead of Color object. (Gemini)
+ * - 1.4.0 (2025-04-15): Implemented centering of map drawing within the panel. Removed fixed GRID_OFFSETs. Uses config colors. (Gemini)
+ * - (Previous history omitted)
  */
 
  import javax.swing.*;
@@ -32,172 +22,132 @@
 
  public class MapPanel extends JPanel {
 
-     private RPG rpgGame; // Reference to the central RPG object (holds map structure)
-     private final int TILE_SIZE = 16; // Slightly smaller tile size for larger map? Or keep 20? Let's try 16.
-     private final int GRID_OFFSET_X = 20; // Reduced offset for larger map
-     private final int GRID_OFFSET_Y = 10; // Reduced offset for larger map
+     private RPG centralGame;
+     private final int TILE_SIZE = 16;
 
-     // Define colors (Unchanged)
-     private final Color COLOR_EMPTY = Color.BLACK;
-     private final Color COLOR_EXPLORED_NEUTRAL = Color.DARK_GRAY;
-     private final Color COLOR_NORMAL = Color.LIGHT_GRAY;
-     private final Color COLOR_START = Color.CYAN;
-     private final Color COLOR_BOSS = Color.MAGENTA; // Ensure this matches RPG type 10
-     private final Color COLOR_ENEMY_STD = Color.RED;
-     private final Color COLOR_ENEMY_DIFF = new Color(139, 0, 0);
-     private final Color COLOR_SHOP = Color.YELLOW;
-     private final Color COLOR_SMITH = Color.ORANGE;
-     private final Color COLOR_TREASURE = Color.GREEN;
-     private final Color COLOR_PLAIN = Color.WHITE;
-     private final Color COLOR_SHRINE = Color.BLUE;
+     // Default colors used ONLY if config loading fails or is missing entries
+     // Defined as constants for clarity, but getRoomColor uses hex strings primarily.
      private final Color COLOR_PLAYER = Color.PINK;
      private final Color COLOR_BORDER = new Color(80, 80, 80);
+     private final String COLOR_FALLBACK_HEX = "#808080"; // Fallback HEX STRING
+     private final String COLOR_EXPLORED_HEX = "#696969"; // Default explored hex
 
-     // Constructor takes the central RPG object
      public MapPanel(RPG centralRpg) {
-         this.rpgGame = centralRpg; // Store reference to the object with the map structure
-
-         int mapWidth = 1; // Default minimum
-         int mapHeight = 1; // Default minimum
-         // Dynamically get dimensions from the central map object
-         if (rpgGame != null && rpgGame.map != null && rpgGame.map.length > 0 && rpgGame.map[0].length > 0) {
-              mapHeight = rpgGame.map.length;
-              mapWidth = rpgGame.map[0].length;
-              System.out.println("MapPanel: Detected map dimensions: " + mapWidth + "x" + mapHeight); // Debug log
-         } else {
-             System.err.println("MapPanel Warning: Central RPG map data is null or invalid during initialization. Using default 1x1.");
-         }
-
-         // Calculate preferred size based on actual map dimensions and tile size
-         int preferredWidth = mapWidth * TILE_SIZE + 2 * GRID_OFFSET_X;
-         int preferredHeight = mapHeight * TILE_SIZE + 2 * GRID_OFFSET_Y;
-         this.setPreferredSize(new Dimension(preferredWidth, preferredHeight));
-         System.out.println("MapPanel: Setting preferred size to " + preferredWidth + "x" + preferredHeight); // Debug log
-
-         this.setBackground(COLOR_EMPTY);
+         this.centralGame = centralRpg;
+         this.setBackground(Color.BLACK);
+         this.setOpaque(true);
      }
 
      @Override
      protected void paintComponent(Graphics g) {
          super.paintComponent(g);
 
-         // Ensure central map and player list are ready
-         if (rpgGame == null || rpgGame.map == null || RPG.getPlayers() == null || RPG.getPlayers().isEmpty()) {
-             g.setColor(Color.WHITE);
-             g.drawString("Waiting for game data...", 20, 30);
-             return;
+         if (centralGame == null || centralGame.getBoard() == null || RPG.getPlayers() == null || RPG.getPlayers().isEmpty()) {
+             g.setColor(Color.WHITE); g.drawString("Waiting...", 10, 20); return;
          }
 
-         // Get player 0's state (assuming single player view for now)
-         RPG player = RPG.getPlayers().get(0);
-         if (player == null || player.getExploredMap() == null || player.getVisitedMap() == null) {
-              g.setColor(Color.WHITE);
-              g.drawString("Waiting for player data...", 20, 30);
-              return;
-         }
+         Board board = centralGame.getBoard();
+         Player player = RPG.getPlayers().get(0);
+         if (player == null) { g.setColor(Color.WHITE); g.drawString("No Player...", 10, 20); return; }
 
-         // Get necessary state for drawing
-         int[][] worldMap = rpgGame.map; // Use the central map structure
-         boolean[][] explored = player.getExploredMap(); // Use player's explored state
-         boolean[][] visited = player.getVisitedMap();   // Use player's visited state
-         boolean showFull = RPG.isShowFullMap(); // Use the static global flag
-         int numRows = worldMap.length;
-         int numCols = worldMap[0].length;
+         boolean showFull = RPG.isShowFullMap();
+         int numRows = board.getHeight();
+         int numCols = board.getWidth();
+
+         int totalMapDrawingWidth = numCols * TILE_SIZE;
+         int totalMapDrawingHeight = numRows * TILE_SIZE;
+         int panelWidth = getWidth();
+         int panelHeight = getHeight();
+         int offsetX = Math.max(0, (panelWidth - totalMapDrawingWidth) / 2);
+         int offsetY = Math.max(0, (panelHeight - totalMapDrawingHeight) / 2);
 
          // Draw the map grid
          for (int row = 0; row < numRows; row++) {
              for (int col = 0; col < numCols; col++) {
-                 int tileX = GRID_OFFSET_X + col * TILE_SIZE;
-                 int tileY = GRID_OFFSET_Y + row * TILE_SIZE;
-                 int roomType = worldMap[row][col]; // Type from the central map
+                 int tileX = offsetX + col * TILE_SIZE;
+                 int tileY = offsetY + row * TILE_SIZE;
 
-                 boolean isExplored = explored[row][col]; // From player's map
-                 boolean isVisited = visited[row][col];   // From player's map
+                 Room room = board.getRoom(row, col);
+                 if (room == null) continue;
 
-                 Color tileColor = COLOR_EMPTY;
+                 Room.RoomType roomType = room.getRoomType();
+                 boolean isExplored = room.isExplored();
+                 boolean isVisited = room.isVisited();
+                 Color tileColor = getBackground(); // Default to panel background
                  boolean drawBorder = false;
 
-                 // Determine appearance based on central map type and player state
-                 if (roomType != 0) {
+                 if (roomType != Room.RoomType.EMPTY_SPACE) {
+                      String colorKey = roomType.name();
+                      // ** FIX: Define the default color AS A STRING here **
+                      String defaultColorHex = COLOR_FALLBACK_HEX; // Default hex string
+
+                      // Assign default color hex based on room type if needed (optional, config should handle)
+                      // switch(roomType) { case START_ROOM: defaultColorHex = "#00FFFF"; break; ... etc ... }
+
                      if (showFull) {
-                         tileColor = getRoomColor(roomType);
+                         tileColor = getRoomColor(colorKey, defaultColorHex); // Pass string default
                          drawBorder = true;
                      } else {
                          if (isVisited) {
-                             tileColor = getRoomColor(roomType);
+                             tileColor = getRoomColor(colorKey, defaultColorHex); // Pass string default
                              drawBorder = true;
                          } else if (isExplored) {
-                             tileColor = COLOR_EXPLORED_NEUTRAL;
-                             drawBorder = true;
+                              tileColor = getRoomColor("EXPLORED_NEUTRAL", COLOR_EXPLORED_HEX); // Pass specific default
+                              drawBorder = true;
                          }
-                         // If not explored and not showFull, tileColor remains COLOR_EMPTY (no drawing)
                      }
                  }
 
-                 // Draw fill and border
-                 g.setColor(tileColor);
-                 g.fillRect(tileX, tileY, TILE_SIZE, TILE_SIZE);
-                 if (drawBorder) {
-                     g.setColor(COLOR_BORDER);
-                     // Draw border slightly inside the tile for better visual separation
-                     g.drawRect(tileX, tileY, TILE_SIZE - 1, TILE_SIZE - 1);
+                 // Draw fill and border only if tileColor is not the background color
+                 if (!tileColor.equals(getBackground())) {
+                     g.setColor(tileColor);
+                     g.fillRect(tileX, tileY, TILE_SIZE, TILE_SIZE);
+                     if (drawBorder) {
+                         g.setColor(COLOR_BORDER);
+                         g.drawRect(tileX, tileY, TILE_SIZE - 1, TILE_SIZE - 1);
+                     }
                  }
              }
          }
 
-         // Draw the player marker (using player's position)
+         // Draw the player marker (using calculated offsets)
          int[] playerPos = player.getCurrentPos();
-         if (playerPos != null && playerPos.length == 2 && playerPos[0] >= 0) { // Check if valid position
-             int playerRow = playerPos[0];
-             int playerCol = playerPos[1];
-
-             if (playerRow < numRows && playerCol < numCols) { // Ensure bounds
-                 int playerTileX = GRID_OFFSET_X + playerCol * TILE_SIZE;
-                 int playerTileY = GRID_OFFSET_Y + playerRow * TILE_SIZE;
-
+         if (playerPos != null && playerPos.length == 2 && playerPos[0] >= 0) {
+             int playerRow = playerPos[0]; int playerCol = playerPos[1];
+             if (playerRow < numRows && playerCol < numCols) {
+                 int playerTileX = offsetX + playerCol * TILE_SIZE;
+                 int playerTileY = offsetY + playerRow * TILE_SIZE;
                  g.setColor(COLOR_PLAYER);
-                 int markerSize = TILE_SIZE / 2; // Adjust marker size based on TILE_SIZE
-                 int offset = (TILE_SIZE - markerSize) / 2;
-                 g.fillOval(playerTileX + offset, playerTileY + offset, markerSize, markerSize);
-
-                 // Draw direction indicator (using player's facing)
+                 int markerSize = TILE_SIZE / 2; int markerOffset = (TILE_SIZE - markerSize) / 2;
+                 g.fillOval(playerTileX + markerOffset, playerTileY + markerOffset, markerSize, markerSize);
                  g.setColor(Color.BLACK);
-                 int centerX = playerTileX + TILE_SIZE / 2;
-                 int centerY = playerTileY + TILE_SIZE / 2;
-                 int lineLength = Math.max(1, TILE_SIZE / 3); // Ensure line length is at least 1
-                 switch (player.getWayFacing()) {
-                     case 0: g.drawLine(centerX, centerY, centerX, centerY - lineLength); break; // N
-                     case 1: g.drawLine(centerX, centerY, centerX + lineLength, centerY); break; // E
-                     case 2: g.drawLine(centerX, centerY, centerX, centerY + lineLength); break; // S
-                     case 3: g.drawLine(centerX, centerY, centerX - lineLength, centerY); break; // W
-                 }
+                 int centerX = playerTileX + TILE_SIZE / 2; int centerY = playerTileY + TILE_SIZE / 2;
+                 int lineLength = Math.max(1, TILE_SIZE / 3);
+                 switch (player.getWayFacing()) { /* N E S W lines */ case 0: g.drawLine(centerX, centerY, centerX, centerY-lineLength); break; case 1: g.drawLine(centerX, centerY, centerX+lineLength, centerY); break; case 2: g.drawLine(centerX, centerY, centerX, centerY+lineLength); break; case 3: g.drawLine(centerX, centerY, centerX-lineLength, centerY); break; }
              }
          }
      }
 
-     // Helper method to get color based on room type (added case for Boss Room)
-     private Color getRoomColor(int roomType) {
-         switch (roomType) {
-             case 0: return COLOR_EMPTY;
-             case 1: return COLOR_NORMAL; // Should ideally not be seen often if events placed
-             case 2: return COLOR_START;
-             case 3: return COLOR_ENEMY_STD;
-             case 4: return COLOR_ENEMY_DIFF;
-             case 5: return COLOR_SHOP;
-             case 6: return COLOR_SMITH;
-             case 7: return COLOR_TREASURE;
-             case 8: return COLOR_PLAIN;
-             case 9: return COLOR_SHRINE;
-             case 10: return COLOR_BOSS; // Added Boss Room color
-             default: return COLOR_NORMAL; // Fallback
+     /**
+      * Helper method to get color from ConfigLoader.
+      * @param roomTypeName The enum name (e.g., "ENEMY_ROOM").
+      * @param defaultHexColor Default color HEX STRING (e.g., "#FF0000").
+      * @return The loaded Color object or default if not found/invalid.
+      */
+     private Color getRoomColor(String roomTypeName, String defaultHexColor) { // Signature expects String
+         String hexColor = ConfigLoader.getColor(roomTypeName, defaultHexColor);
+         try {
+             return Color.decode(hexColor);
+         } catch (NumberFormatException e) {
+             System.err.println("Warning: Invalid color format '" + hexColor + "' for " + roomTypeName + ". Using default " + defaultHexColor);
+             try {
+                  return Color.decode(defaultHexColor); // Try decoding the passed default hex
+             } catch (NumberFormatException e2) {
+                  // Ultimate fallback if defaultHexColor itself was bad
+                  return Color.decode(COLOR_FALLBACK_HEX);
+             }
          }
      }
 
-     // Method to trigger a repaint
-     public void refreshMap() {
-         // Revalidate might be needed if the component's size *could* change,
-         // but preferred size is set in constructor. Repaint is essential.
-         // this.revalidate(); // Usually not needed unless layout hints change
-         this.repaint();
-     }
+     public void refreshMap() { this.repaint(); }
  }

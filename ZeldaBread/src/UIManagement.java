@@ -1,35 +1,22 @@
 /**
  * @file    UIManagement.java
- * @brief   Manages the main game window (JFrame), UI panels (using CardLayout), button actions, key bindings, and screen transitions. Handles dynamic character image loading and display during class selection, including name generation. Initializes game state after character creation. Instantiates StatusPanel and DialoguePanel.
+ * @brief   Manages UI window, panels, layout, actions, key bindings, screen transitions.
+ * Includes Room Legend Panel overlay.
  *
- * Sets up the overall graphical user interface, handles user input via buttons and keyboard (arrow keys, F8, character screen keys),
- * orchestrates player creation (including selecting and storing character images and names), map generation, and starts the game screen.
- *
- * @author  Jack Schulte & AI Assistant
- * @version 1.2.3 (Modified)
+ * @author  Jack Schulte & AI Assistant & Gemini
+ * @version 1.5.1 (Fix Char Create Layout)
  * @date    2025-04-15
  *
- * @copyright Copyright (c) 2025 Jack Schulte & AI Assistant. All rights reserved.
+ * @copyright Copyright (c) 2025 Jack Schulte & Gemini. All rights reserved.
  * Strictly confidential and proprietary. Distribution, reproduction,
  * or modification is strictly prohibited without prior written permission.
  *
  * @version History:
- * - 1.2.3 (2025-04-15): Changed highlightFocusedButton access modifier to public static to fix compilation error from FocusAdapter. (Gemini)
- * - 1.2.2 (2025-04-15): Added foreground text color change on keyboard focus gain/loss to match mouse hover highlight behavior. Updated comments. (Gemini)
- * - 1.2.1 (2025-04-15): Synchronized keyboard focus behavior with mouse hover for updating character info panel (image/details). Updated comments. (Gemini)
- * - 1.2.0 (2025-04-15): Implemented keyboard navigation (Arrows, Space, Enter) for character creation buttons. Removed "Hovering..." message. Added sound effect for invalid "Done" click. Updated comments. (Gemini)
- * - 1.1.1 (2025-04-14): Further increased font size for class title/name. Set minimum window size to initial size (1200x800). (AI Assistant)
- * - 1.1.0 (2025-04-14): Increased font size for class title and character name in the character details panel. (AI Assistant)
- * - 1.0.9 (2025-04-14): Moved Player Info label to top-right. Updated character creator panel for better image scaling. Integrated CharacterClassInfo for stats and random name generation/display. Updated Player Info label during gameplay to show name. (AI Assistant)
- * - 1.0.8 (2025-04-14): Implemented "sticky" hover effect on character class buttons before the first selection. Hover state persists until a class is clicked. (AI Assistant)
- * - 1.0.7 (2025-04-14): Implemented dynamic character image loading based on selected set/class. Added logic to find, randomly select, display, scale, and store the chosen ImageIcon during character creation. Replaced static image with dynamic JLabel updates. (AI Assistant)
- * - 1.0.6 (2025-04-14): Refactored Status and Dialogue panels into separate classes (StatusPanel, DialoguePanel). Moved panels to right side. Updated navigation text with arrow symbols. Verified initial HP/Energy update. (AI Assistant)
- * - 1.0.5 (2025-04-14): Corrected updateDescription to use public static getters from RPG for class stats (now obsolete). (AI Assistant)
- * - 1.0.4 (2025-04-14): Added Status and Dialogue panels. Implemented status updates (Score, HP/Energy bars). Added dialogue area. Adjusted layout. Fixed arrow key display. Removed old subtitle HP display. (AI Assistant)
- * - 1.0.3 (2025-04-14): Removed main method (moved to RPG.java). Made setupUI, titleScreen public static. Made frame public static. (AI Assistant)
- * - 1.0.2 (2025-04-14): Refactored initialization: Removed SwingWorker, create/build RPG objects after character creation. Fixed movement calls. (AI Assistant)
- * - 1.0.1 (2025-04-14): Added F8 key binding to toggle map visibility via RPG.toggleMapVisibility() and mapPanel.refreshMap(). Updated comments. (J. Schulte)
- * - 1.0.0 (2025-04-01): Initial version with screen setup, character creation flow, and basic movement buttons/key bindings. (J. Schulte)
+ * - 1.5.1 (2025-04-15): Fixed character creator screen by adding characterImageLabel and classDetailsPane to characterDescPanel layout. Added scroll pane to details. (Gemini)
+ * - 1.5.0 (2025-04-15): Added RoomLegendPanel overlay toggled by F9. Used CardLayout for overlay effect in rightSidePanel. (Gemini)
+ * - 1.4.1 (2025-04-15): Fixed layout for PlayerPanel/StatusPanel (BoxLayout). Increased rightSidePanel width. (Gemini)
+ * - 1.4.0 (2025-04-15): Refactored for Player class. Added PlayerPanel. Updated layout. (Gemini)
+ * - (Previous history omitted)
  */
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -37,8 +24,7 @@ import javax.swing.border.LineBorder;
 import javax.swing.text.html.HTMLEditorKit;
 import javax.swing.text.html.StyleSheet;
 import java.awt.*;
-import java.awt.event.*; // Import all AWT events
-import java.awt.image.BufferedImage;
+import java.awt.event.*;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -51,415 +37,481 @@ public class UIManagement {
 
     // UI Components
     public static JFrame frame = new JFrame();
-    private static JPanel topPanel = new JPanel(new BorderLayout(10, 0)); // Use BorderLayout
-    private static JLabel playerInfoLabel = new JLabel("", SwingConstants.RIGHT); // Right aligned
+    private static JPanel topPanel = new JPanel(new BorderLayout(10, 0));
+    private static JLabel playerInfoLabel = new JLabel("", SwingConstants.RIGHT);
     private static JLabel titleLabel = new JLabel("", SwingConstants.CENTER);
-    private static JPanel centerPanelContainer = new JPanel(new BorderLayout());
-    private static JPanel rightPanel = new JPanel(new BorderLayout());
+    private static JPanel rightSidePanel = new JPanel(new BorderLayout());
+    private static JPanel topRightPanel;
+    private static PlayerPanel playerPanel;
     private static StatusPanel statusPanel;
+    // Panel to hold Dialogue and Legend using CardLayout
+    private static JPanel dialogueLegendContainer;
     private static DialoguePanel dialoguePanel;
-    private static JPanel centerPanel = new JPanel(new CardLayout());
+    private static RoomLegendPanel roomLegendPanel; // New Legend Panel
+    private static final String DIALOGUE_CARD = "DialogueCard";
+    private static final String LEGEND_CARD = "LegendCard";
+    // ------------------------------------------------------------
+    private static JPanel centerPanel = new JPanel(new CardLayout()); // Holds Welcome, CharCreate, Map
     private static WelcomePanel welcomePanel;
-    private static JPanel characterDescPanel = new JPanel(new BorderLayout(10, 0)); // Image CENTER, Details EAST
-    private static JLabel characterImageLabel = new JLabel() { // Override paintComponent for scaling
-         @Override
-        protected void paintComponent(Graphics g) {
-            ImageIcon icon = (ImageIcon) getIcon();
-            if (icon != null) {
-                Image img = icon.getImage();
-                // Calculate the scaling factor to fit the label bounds while preserving aspect ratio
-                float scaleFactor = Math.min(1f, Math.min((float) getWidth() / img.getWidth(null), (float) getHeight() / img.getHeight(null)));
-                int scaledWidth = (int) (img.getWidth(null) * scaleFactor);
-                int scaledHeight = (int) (img.getHeight(null) * scaleFactor);
-                // Center the image within the label
-                int x = (getWidth() - scaledWidth) / 2;
-                int y = (getHeight() - scaledHeight) / 2;
-
-                Graphics2D g2d = (Graphics2D) g.create();
-                // Optional: Use higher quality rendering hints
-                g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-                g2d.drawImage(img, x, y, scaledWidth, scaledHeight, this);
-                g2d.dispose();
-            } else {
-                // If no icon, call superclass to draw text (like "Select a Class")
-                super.paintComponent(g);
-            }
-        }
-    }; // Will display scaled character class image
-    private static JEditorPane classDetailsPane = new JEditorPane();
+    private static JPanel characterDescPanel; // Defined here, configured in setupUI
+    private static JLabel characterImageLabel; // Defined here, configured in setupUI
+    private static JEditorPane classDetailsPane; // Defined here, configured in setupUI
     private static MapPanel mapPanel;
     private static JPanel bottomPanel = new JPanel(new BorderLayout());
     private static JLabel commentLabel = new JLabel("", SwingConstants.CENTER);
-    private static JPanel buttonPanel = new JPanel(); // Holds character/move buttons
+    private static JPanel buttonPanel = new JPanel();
     private static GridBagConstraints gbc = new GridBagConstraints();
 
-
-    // Fonts and Colors
+    // Fonts, Colors, Config
     private static Font titleFont = new Font("Trebuchet MS", Font.BOLD, 24);
-    private static Font playerInfoFont = new Font("Trebuchet MS", Font.BOLD, 18); // Increased size
+    private static Font playerInfoFont = new Font("Trebuchet MS", Font.BOLD, 18);
     private static Font commentFont = new Font("Trebuchet MS", Font.ITALIC, 18);
     private static Font buttonFont = new Font("Aharoni", Font.BOLD, 20);
     public static Color backgroundColor = Color.decode("#EEEEEE");
-    private static Color characterDetailBackgroundColor = Color.decode("#F5F5DC");
+    private static Color characterDetailBackgroundColor = Color.decode("#F5F5DC"); // Beige background for details
     private static Color buttonDefaultForegroundColor = Color.WHITE;
-    private static Color buttonHoverForegroundColor = Color.RED; // Red highlight for hover/focus
+    private static Color buttonHoverForegroundColor = Color.RED;
     private static Color buttonSelectedBackgroundColor = Color.BLACK;
-    private static Color buttonSelectedForegroundColor = Color.WHITE; // White text for selected
-
-
-    // Game State Object
-    private static RPG rpg; // Central map object
-
-    // Character Selection Specific
+    private static Color buttonSelectedForegroundColor = Color.WHITE;
     private static String[] characterButtonLabels = {"Knight", "Sentinel", "Assassin", "Wizard", "Caveman"};
-    private static String[] characterButtonColors = {"#48AD48", "#58D558"}; // Normal, Hover(unused)
+    private static String[] characterButtonColors = {"#48AD48", "#58D558"}; // Normal, Hover/Selected (Done uses different)
     private static String doneButtonLabel = "Done";
-    private static String[] doneButtonColors = {"#EECC44", "#F7DD77"}; // Normal, Hover BG
-    private static int[] characterButtonLengths = new int[]{140, 140, 140, 140, 140, 100}; // Widths
+    private static String[] doneButtonColors = {"#EECC44", "#F7DD77"}; // Normal, Hover (Done button)
+    private static int[] characterButtonLengths = new int[]{140, 140, 140, 140, 140, 100}; // Widths for class buttons + Done
     private static Map<String, JButton> characterButtonMap = new HashMap<>();
-    private static JButton doneButton = null; // Reference to the Done button
-    private static String selectedClass = null; // Confirmed selected class
+    private static JButton doneButton = null;
+    private static String selectedClass = null;
     private static Map<String, ImageIcon> currentIconForClass = new HashMap<>();
-    private static String lastDisplayedClass = null; // Tracks image/details shown
+    private static String lastDisplayedClass = null; // Track last class shown to avoid reloading
     private static Random random = new Random();
-    private static boolean stickyHoverActive = true; // Controls initial hover behavior
-    private static JButton currentlyStickyHoveredButton = null; // Tracks button for sticky hover
-    private static Map<String, String> currentRandomNameMap = new HashMap<>(); // Stores the random name currently associated with a class display
-
-
+    private static Map<String, String> currentRandomNameMap = new HashMap<>(); // Cache random names per session
     private static LineBorder defaultBorder = new LineBorder(Color.GRAY, 1);
-    private static LineBorder focusBorder = new LineBorder(Color.BLUE, 2); // Border for focused button
-
-    // Gameplay Specific
+    private static LineBorder focusBorder = new LineBorder(Color.BLUE, 2); // Highlight for focused button
     private static String[] moveButtonLabels = {"Turn Left", "Forward", "Turn Right", "Backward"};
-    private static String[] moveButtonColors = {"#44AADD", "#66CCFF"};
+    private static String[] moveButtonColors = {"#44AADD", "#66CCFF"}; // Normal, Hover (Gameplay buttons)
     private static boolean isGameScreenActive = false;
-    private static boolean isCharacterCreatorScreenActive = false; // Flag for specific key bindings
-    private static final String LEFT_ARROW = "\u2190";
-    private static final String UP_ARROW = "\u2191";
-    private static final String RIGHT_ARROW = "\u2192";
-    private static final String DOWN_ARROW = "\u2193";
+    private static boolean isCharacterCreatorScreenActive = false;
+    // Arrow symbols for button text (optional)
+    private static final String LEFT_ARROW = "\u2190"; private static final String UP_ARROW = "\u2191";
+    private static final String RIGHT_ARROW = "\u2192"; private static final String DOWN_ARROW = "\u2193";
 
 
     // Method to set up the main UI structure
     public static void setupUI() {
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setTitle("Legend of Splenda: Bread of the Wild");
-
-        // Set initial size
-        Dimension initialSize = new Dimension(1200, 800);
+        Dimension initialSize = new Dimension(1300, 900);
         frame.setSize(initialSize);
+        frame.setMinimumSize(initialSize); // Prevent resizing smaller
+        frame.setLayout(new BorderLayout(5, 5)); // Main layout with gaps
 
-        // Set minimum size AFTER setting initial size to prevent resizing smaller
-        frame.setMinimumSize(initialSize);
-        System.out.println("Frame initial size and minimum size set to: " + initialSize.width + "x" + initialSize.height);
-
-        frame.setLayout(new BorderLayout());
-
-        // --- Top Panel ---
+        // --- Top Panel (Title, Player Info) ---
         playerInfoLabel.setFont(playerInfoFont);
         playerInfoLabel.setOpaque(true);
         playerInfoLabel.setBackground(backgroundColor);
         playerInfoLabel.setBorder(new EmptyBorder(5, 10, 5, 10)); // Padding
-
         titleLabel.setFont(titleFont);
         titleLabel.setOpaque(true);
-        titleLabel.setForeground(Color.decode("#B6220E"));
+        titleLabel.setForeground(Color.decode("#B6220E")); // Title color
         titleLabel.setBackground(backgroundColor);
-        titleLabel.setBorder(new EmptyBorder(5, 10, 5, 10));
-
-        // Add title to CENTER, player info to EAST (pushes it right)
+        titleLabel.setBorder(new EmptyBorder(5, 10, 5, 10)); // Padding
         topPanel.add(titleLabel, BorderLayout.CENTER);
         topPanel.add(playerInfoLabel, BorderLayout.EAST);
         topPanel.setBackground(backgroundColor);
         topPanel.setVisible(false); // Initially hidden
 
-        // --- Right Side Panels (Status/Dialogue - unchanged) ---
-        statusPanel = new StatusPanel(); dialoguePanel = new DialoguePanel();
-        rightPanel.setPreferredSize(new Dimension(250, 0));
-        rightPanel.add(statusPanel, BorderLayout.NORTH);
-        rightPanel.add(dialoguePanel, BorderLayout.CENTER);
-        rightPanel.setBackground(backgroundColor);
-        rightPanel.setVisible(false); // Initially hidden
+        // --- Right Side Panel Setup (Player, Status, Dialogue/Legend) ---
+        playerPanel = new PlayerPanel(); // Panel for player image in-game
+        statusPanel = new StatusPanel(); // Panel for HP/Energy/Score
+        dialoguePanel = new DialoguePanel(); // Panel for game messages
+        roomLegendPanel = new RoomLegendPanel(); // Instantiate legend panel
+        roomLegendPanel.setVisible(false); // Initially hidden
 
-        // --- Center Panel (CardLayout: Welcome, Character Creator, Map) ---
+        // Panel for Player image + Status (Horizontal Box)
+        topRightPanel = new JPanel();
+        topRightPanel.setLayout(new BoxLayout(topRightPanel, BoxLayout.X_AXIS));
+        topRightPanel.setBackground(backgroundColor);
+        topRightPanel.add(playerPanel);
+        topRightPanel.add(Box.createHorizontalStrut(5)); // Space between player and status
+        topRightPanel.add(statusPanel);
+
+        // Container for Dialogue/Legend using CardLayout
+        dialogueLegendContainer = new JPanel(new CardLayout());
+        dialogueLegendContainer.setBackground(backgroundColor); // Match background
+        dialogueLegendContainer.add(dialoguePanel, DIALOGUE_CARD); // Add dialogue panel
+        dialogueLegendContainer.add(roomLegendPanel, LEGEND_CARD);  // Add legend panel
+
+        // Assemble the main right-side container panel
+        rightSidePanel.setBackground(backgroundColor);
+        rightSidePanel.setBorder(BorderFactory.createEmptyBorder(0, 5, 0, 0)); // Left padding
+        rightSidePanel.add(topRightPanel, BorderLayout.NORTH);              // Player+Status hbox at top
+        rightSidePanel.add(dialogueLegendContainer, BorderLayout.CENTER);   // CardLayout container below
+        rightSidePanel.setPreferredSize(new Dimension(400, 0)); // Give it a preferred width
+        rightSidePanel.setVisible(false); // Initially hidden
+
+       // --- Center Panel (CardLayout: Welcome, Character Creator, Map) ---
         welcomePanel = new WelcomePanel();
         centerPanel.add(welcomePanel, "welcome");
 
-        // --- Character Creator Panel Setup (Revised Layout) ---
+        // Character Creator Panel Setup
+        characterDescPanel = new JPanel(new BorderLayout(10, 0)); // Panel holds image and details
+        characterDescPanel.setBackground(backgroundColor);
+
+        // Initialize Image Label (with custom painting for scaling)
+        characterImageLabel = new JLabel() {
+            @Override protected void paintComponent(Graphics g) {
+                ImageIcon icon = (ImageIcon) getIcon();
+                if (icon != null) {
+                    Image img = icon.getImage();
+                    // Calculate scale factor to fit within the label bounds while maintaining aspect ratio
+                    float scaleFactor = Math.min(1f, Math.min((float) getWidth() / img.getWidth(null), (float) getHeight() / img.getHeight(null)));
+                    int scaledWidth = (int) (img.getWidth(null) * scaleFactor);
+                    int scaledHeight = (int) (img.getHeight(null) * scaleFactor);
+                    // Center the image
+                    int x = (getWidth() - scaledWidth) / 2;
+                    int y = (getHeight() - scaledHeight) / 2;
+                    // Draw with better quality hints
+                    Graphics2D g2d = (Graphics2D) g.create();
+                    g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+                    g2d.drawImage(img, x, y, scaledWidth, scaledHeight, this);
+                    g2d.dispose();
+                } else {
+                    super.paintComponent(g); // Draw default text if no icon
+                }
+            }
+        };
+        characterImageLabel.setPreferredSize(new Dimension(300, 400)); // Suggest a size
         characterImageLabel.setHorizontalAlignment(SwingConstants.CENTER);
         characterImageLabel.setVerticalAlignment(SwingConstants.CENTER);
-        characterImageLabel.setBackground(backgroundColor); // Or a distinct background
-        characterImageLabel.setOpaque(true);
+        characterImageLabel.setBorder(BorderFactory.createLineBorder(Color.DARK_GRAY)); // Border helps visibility
 
-        classDetailsPane.setEditable(false);
+        // Initialize Details Pane (using JEditorPane for HTML)
+        classDetailsPane = new JEditorPane();
         classDetailsPane.setContentType("text/html");
+        classDetailsPane.setEditable(false);
         classDetailsPane.setBackground(characterDetailBackgroundColor);
-        classDetailsPane.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, Boolean.TRUE);
+        classDetailsPane.setBorder(new EmptyBorder(10, 10, 10, 10)); // Padding inside details
 
+        // Set up HTML styles for the details pane
         HTMLEditorKit kit = new HTMLEditorKit();
         classDetailsPane.setEditorKit(kit);
         StyleSheet styleSheet = kit.getStyleSheet();
-        styleSheet.addRule("body {font-family:\"Trebuchet MS\"; font-size: 11pt; margin: 5px;}");
-        styleSheet.addRule("h2.classname { margin-top: 10px; margin-bottom: 5px; text-align: center; font-size: 20pt; font-weight: bold;}"); // Increased class name size further
+        styleSheet.addRule("body {font-family: Trebuchet MS; font-size: 12px;}");
+        styleSheet.addRule("h2.classname { text-align: center; color: #B6220E; margin-bottom: 10px; }");
+        styleSheet.addRule("p.charname { text-align: center; font-style: italic; font-weight: bold; margin-top: 15px; font-size: 14px; }");
         styleSheet.addRule("table { border-collapse: collapse; margin: 10px auto; width: 90%; }");
-        styleSheet.addRule("th, td { border: 1px solid #cccccc; padding: 5px; text-align: left; }");
-        styleSheet.addRule("th { background-color: #e0e0e0; text-align: center; }");
-        styleSheet.addRule("p.charname { text-align: center; font-weight: bold; margin-top: 15px; font-size: 18pt;}"); // Increased character name size further
+        styleSheet.addRule("th, td { border: 1px solid #AAAAAA; padding: 4px 8px; text-align: left; }");
+        styleSheet.addRule("th { background-color: #E0E0E0; font-weight: bold; }");
+        styleSheet.addRule("td:first-child { font-weight: bold; width: 80px; }"); // Stat name bold
+        JScrollPane detailsScrollPane = new JScrollPane(classDetailsPane); // Add scroll bars if needed
+        detailsScrollPane.setPreferredSize(new Dimension(250, 0)); // Give details pane a preferred width
 
-        JScrollPane detailsScrollPane = new JScrollPane(classDetailsPane);
-        detailsScrollPane.setBorder(BorderFactory.createLineBorder(Color.DARK_GRAY));
-        detailsScrollPane.setPreferredSize(new Dimension(320, 0)); // Give details a fixed width
+        // *** FIX: Add the image label and details pane to the characterDescPanel ***
+        characterDescPanel.add(characterImageLabel, BorderLayout.CENTER); // Image in the middle
+        characterDescPanel.add(detailsScrollPane, BorderLayout.EAST); // Details on the right (using scroll pane)
+        // **************************************************************************
 
-        characterDescPanel.setBackground(backgroundColor);
-        characterDescPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
-        characterDescPanel.add(characterImageLabel, BorderLayout.CENTER);
-        characterDescPanel.add(detailsScrollPane, BorderLayout.EAST);
+        centerPanel.add(characterDescPanel, "characterCreator"); // Add the prepared panel to CardLayout
 
-        centerPanel.add(characterDescPanel, "characterCreator");
-        // --- End Character Creator Panel Setup ---
-
+        // Map Panel is created later when the game starts
         centerPanel.setBackground(backgroundColor);
 
-        // Center Container (Holds center panel and right gameplay panels)
-        centerPanelContainer.add(centerPanel, BorderLayout.CENTER);
-        centerPanelContainer.add(rightPanel, BorderLayout.EAST); // Status/Dialogue
-        centerPanelContainer.setBackground(backgroundColor);
+        // --- Bottom Panel (Comments, Buttons) ---
+        commentLabel.setFont(commentFont);
+        commentLabel.setBackground(backgroundColor);
+        commentLabel.setOpaque(true);
+        commentLabel.setBorder(new EmptyBorder(5,0,5,0)); // Padding top/bottom
+        buttonPanel.setBackground(backgroundColor);
+        buttonPanel.setLayout(new GridBagLayout()); // Use GridBagLayout for button alignment
+        buttonPanel.setFocusable(true); // Allows key bindings to work when panel has focus
+        gbc.insets = new Insets(5, 10, 5, 10); // Button spacing
+        gbc.gridy = 0; // All buttons on the same row
+        bottomPanel.setBackground(backgroundColor);
+        bottomPanel.add(commentLabel, BorderLayout.NORTH);
+        bottomPanel.add(buttonPanel, BorderLayout.CENTER);
+        bottomPanel.setBorder(new EmptyBorder(10, 0, 10, 0)); // Padding for the whole bottom area
 
-        // --- Bottom Panel (Comment/Buttons - unchanged structure) ---
-        commentLabel.setFont(commentFont); commentLabel.setBackground(backgroundColor); commentLabel.setOpaque(true);
-        buttonPanel.setBackground(backgroundColor); buttonPanel.setLayout(new GridBagLayout());
-        // Allow buttonPanel to receive focus for keyboard navigation
-        buttonPanel.setFocusable(true); // <-- Important for key bindings on panel
-
-        gbc.insets = new Insets(5, 10, 5, 10); gbc.gridy = 0;
-        bottomPanel.setBackground(backgroundColor); bottomPanel.add(commentLabel, BorderLayout.NORTH); bottomPanel.add(buttonPanel, BorderLayout.CENTER); bottomPanel.setBorder(new EmptyBorder(10, 0, 10, 0));
-
-        // Final Frame Assembly
+        // --- Final Frame Assembly ---
         frame.add(topPanel, BorderLayout.NORTH);
-        frame.add(centerPanelContainer, BorderLayout.CENTER);
+        frame.add(centerPanel, BorderLayout.CENTER);
+        frame.add(rightSidePanel, BorderLayout.EAST);
         frame.add(bottomPanel, BorderLayout.SOUTH);
 
-        // Setup Key Bindings (Gameplay and Character Creator)
-        setupKeyBindings(); // Add general gameplay keys
-        setupCharacterCreatorKeyBindings(); // Add character creation specific keys
-
-        // Show Welcome Screen initially (Called from main after centering)
+        setupKeyBindings(); // General key bindings (Arrows, F8, F9)
+        setupCharacterCreatorKeyBindings(); // Character creator specific keys (Enter, Space, Nav)
     }
 
 
     // ==============================================================================================
     // =================== Screen Management & Game Initialization ==================================
 
-    // Switches the view in the center panel
+    /**
+     * Switches the central display panel using CardLayout.
+     * Manages visibility of other UI elements based on the active screen.
+     * @param screenName The name of the card/screen to show ("welcome", "characterCreator", "map").
+     */
     private static void showScreen(String screenName) {
-        if (screenName.equals("map") && mapPanel == null) {
-             System.err.println("Attempted to switch to map screen, but mapPanel is null!");
-             JOptionPane.showMessageDialog(frame, "Error: Map Panel not ready.", "Error", JOptionPane.ERROR_MESSAGE);
-             return;
+        // Check if mapPanel exists before trying to show it
+        if (screenName.equals("map")) {
+            if (mapPanel == null) {
+                System.err.println("Error: MapPanel is null, cannot switch to map screen.");
+                return; // Avoid switching if map isn't ready
+            }
+            // Double-check it's actually added to the centerPanel (should be by initializeAndStartGame)
+            boolean found = false;
+            for(Component comp : centerPanel.getComponents()) {
+                if (comp == mapPanel) {
+                    found = true; break;
+                }
+            }
+            if (!found) {
+                 System.err.println("Error: MapPanel has not been added to the centerPanel layout.");
+                 return;
+            }
         }
-        CardLayout cl = (CardLayout) (centerPanel.getLayout());
+
+        CardLayout cl = (CardLayout)(centerPanel.getLayout());
         cl.show(centerPanel, screenName);
 
-        // Update screen state flags
+        // Update flags for key binding context
         isGameScreenActive = screenName.equals("map");
         isCharacterCreatorScreenActive = screenName.equals("characterCreator");
-        System.out.println("Switched to screen: " + screenName + ", isGameScreenActive: " + isGameScreenActive + ", isCharacterCreatorScreenActive: " + isCharacterCreatorScreenActive);
 
-        // Panel Visibility
-        topPanel.setVisible(!screenName.equals("welcome"));
-        rightPanel.setVisible(isGameScreenActive); // Only show status/dialogue during gameplay
-        bottomPanel.setVisible(!screenName.equals("welcome"));
+        System.out.println("Screen: " + screenName); // Log screen transition
 
-        // Screen specific setup
+        // Control visibility of surrounding panels
+        boolean showTopBottom = !screenName.equals("welcome");
+        topPanel.setVisible(showTopBottom);
+        rightSidePanel.setVisible(isGameScreenActive); // Only show right panel during gameplay
+        bottomPanel.setVisible(showTopBottom);
+
+        // Screen-specific setup
         if (isGameScreenActive) {
-            commentLabel.setText("Use buttons or " + LEFT_ARROW + " " + UP_ARROW + " " + RIGHT_ARROW + " " + DOWN_ARROW + " keys. Press F8 to toggle map.");
-            if (RPG.getPlayers() != null && !RPG.getPlayers().isEmpty()) {
-                 updateGameStatus(RPG.getPlayers().get(0));
+            commentLabel.setText("Arrows/Buttons move. F8 Map. F9 Legend.");
+            if(RPG.getPlayers() != null && !RPG.getPlayers().isEmpty()) {
+                updateGameStatus(RPG.getPlayers().get(0)); // Initial update for player 1
             }
-            frame.getRootPane().requestFocusInWindow(); // Focus for gameplay key bindings
-        } else if (isCharacterCreatorScreenActive){
-            commentLabel.setText("Select a class using mouse or arrow keys & Space/Enter."); // Updated prompt
-            lastDisplayedClass = null;
+            frame.getRootPane().requestFocusInWindow(); // Ensure main frame gets key events
+        } else if (isCharacterCreatorScreenActive) {
+            commentLabel.setText("Select a class using buttons or arrow keys. Press Enter or click 'Done'.");
+            lastDisplayedClass = null; // Reset display cache
             currentIconForClass.clear();
             currentRandomNameMap.clear();
-            stickyHoverActive = true;
-            currentlyStickyHoveredButton = null;
-            updateCharacterImageAndDetails(null);
-
-            // Request focus for the button panel for character creator keys
-            SwingUtilities.invokeLater(() -> { // Ensure it happens after UI updates
+            updateCharacterImageAndDetails(null); // Show default state initially
+            // Request focus on the button panel for keyboard navigation
+             SwingUtilities.invokeLater(() -> {
                  buttonPanel.requestFocusInWindow();
-                 // Optionally set initial focus to the first button
-                 if (buttonPanel.getComponentCount() > 0 && buttonPanel.getComponent(0) instanceof JButton) {
-                      JButton firstButton = (JButton) buttonPanel.getComponent(0);
-                      firstButton.requestFocusInWindow();
-                      // Focus listener on the button will handle the initial highlight and panel update
+                 // Try focusing the first button specifically
+                 if(buttonPanel.getComponentCount() > 0 && buttonPanel.getComponent(0) instanceof JButton) {
+                      buttonPanel.getComponent(0).requestFocusInWindow();
                  }
-            });
-
-        } else { // Welcome screen
-             commentLabel.setText("");
-             playerInfoLabel.setText("");
-             titleLabel.setText("");
-             buttonPanel.removeAll(); buttonPanel.revalidate(); buttonPanel.repaint(); // Clear buttons
+             });
+        } else { // Welcome screen or other future screens
+            commentLabel.setText("");
+            playerInfoLabel.setText("");
+            titleLabel.setText(""); // Reset title/player info
+            buttonPanel.removeAll(); // Clear buttons if not welcome/char create/game
+            buttonPanel.revalidate();
+            buttonPanel.repaint();
         }
 
-        // Revalidate frame after visibility changes
+        // Ensure layout updates are reflected
         frame.revalidate();
         frame.repaint();
     }
 
-    // Initial welcome screen setup (Unchanged)
-    public static void welcomeScreen() { showScreen("welcome"); }
-
-    // Screen for character class selection
-    public static void characterCreatorScreen() {
-        selectedClass = null;
-        characterButtonMap.clear();
-        doneButton = null; // Reset done button reference
-
-        titleLabel.setText("Create your Character");
-        playerInfoLabel.setText("Player " + (RPG.getPlayerIndex() + 1));
-        topPanel.setVisible(true);
-
-        // --- Create Buttons ---
-        ArrayList<String> buttonConfigList = new ArrayList<>(); ArrayList<Integer> lengthConfigList = new ArrayList<>();
-        for (int i = 0; i < characterButtonLabels.length; i++) {
-            String label = characterButtonLabels[i];
-            buttonConfigList.add(label); buttonConfigList.add(characterButtonColors[0]); buttonConfigList.add(characterButtonColors[0]); // Normal BG, Hover BG (unused by logic now)
-            lengthConfigList.add(characterButtonLengths[i]);
-        }
-        buttonConfigList.add(doneButtonLabel); buttonConfigList.add(doneButtonColors[0]); buttonConfigList.add(doneButtonColors[1]); // Done Normal, Done Hover BG
-        lengthConfigList.add(characterButtonLengths[characterButtonLengths.length - 1]);
-
-        makeButtons(buttonConfigList.toArray(new String[0]), lengthConfigList.stream().mapToInt(i -> i).toArray(), "characterCreator");
-        // --- End Create Buttons ---
-
-        showScreen("characterCreator"); // This will request focus after showing
-        bottomPanel.setVisible(true);
+    /** Switches to the welcome screen. */
+    public static void welcomeScreen() {
+        showScreen("welcome");
     }
 
+    /** Switches to the character creator screen. Sets up title, buttons, and player info. */
+    public static void characterCreatorScreen() {
+        selectedClass = null; // Reset selection
+        characterButtonMap.clear();
+        doneButton = null;
 
-    // --- Central Game Initialization Logic --- (Unchanged)
+        // Update top panel for the current player being created
+        titleLabel.setText("Create Character");
+        playerInfoLabel.setText("Player " + (RPG.getPlayerIndex() + 1) + " of " + RPG.getNumPlayers());
+        topPanel.setVisible(true);
+
+        // Prepare button data (Label, NormalColorHex, HoverColorHex)
+        ArrayList<String> buttonCreationList = new ArrayList<>();
+        ArrayList<Integer> lengthCreationList = new ArrayList<>();
+        for (int i = 0; i < characterButtonLabels.length; i++) {
+            String label = characterButtonLabels[i];
+            buttonCreationList.add(label);                      // Label
+            buttonCreationList.add(characterButtonColors[0]);   // Normal BG color
+            buttonCreationList.add(characterButtonColors[1]);   // Hover BG color (unused for class buttons)
+            lengthCreationList.add(characterButtonLengths[i]);  // Width
+        }
+        // Add the "Done" button data
+        buttonCreationList.add(doneButtonLabel);
+        buttonCreationList.add(doneButtonColors[0]);            // Normal BG color
+        buttonCreationList.add(doneButtonColors[1]);            // Hover BG color
+        lengthCreationList.add(characterButtonLengths[characterButtonLengths.length - 1]); // Width
+
+        // Create the buttons using the helper method
+        makeButtons(buttonCreationList.toArray(new String[0]),
+                    lengthCreationList.stream().mapToInt(i->i).toArray(),
+                    "characterCreator");
+
+        showScreen("characterCreator");
+        bottomPanel.setVisible(true); // Ensure bottom panel is visible
+    }
+
+    /** Initializes player positions, map exploration, and transitions to the main game screen. */
     private static void initializeAndStartGame() {
-        System.out.println("All players created. Initializing game world...");
-        rpg = new RPG();
-        rpg.buildMap();
-        rpg.addEventsToRooms();
+        System.out.println("Initializing game state and map panel...");
 
-        if (!RPG.getPlayers().isEmpty()) {
-            RPG player0 = RPG.getPlayers().get(0);
-            int startRow = rpg.map.length / 2; int startCol = rpg.map[0].length / 2;
-            System.out.println("Setting initial state for Player 0 at ["+startRow+","+startCol+"]");
-            player0.setCurrentPos(new int[]{startRow, startCol});
-            player0.setWayFacing(0);
-            player0.getVisitedMap()[startRow][startCol] = true;
-            player0.exploreAround(startRow, startCol, rpg.map);
+        RPG centralGame = RPG.getCentralGameInstance();
+        if (centralGame == null || centralGame.getBoard() == null) {
+            System.err.println("FATAL ERROR: Central game or board is not initialized. Returning to welcome.");
+            welcomeScreen(); // Go back if critical components missing
+            return;
+        }
+        Board board = centralGame.getBoard();
 
-            if (dialoguePanel != null) { dialoguePanel.clearDialogue(); }
-            addDialogue("Welcome, " + player0.getCharacterName() + " the " + player0.getClassName() + "!");
-            addDialogue("You awaken in the " + RPG.getRoomDescription(rpg.map[startRow][startCol]) + ".");
-            updateGameStatus(player0);
-        } else {
-            System.err.println("ERROR: No players found!");
-            JOptionPane.showMessageDialog(frame, "Error: Player data not found.", "Initialization Error", JOptionPane.ERROR_MESSAGE);
-            welcomeScreen(); return;
+        if (RPG.getPlayers() == null || RPG.getPlayers().isEmpty()) {
+             System.err.println("ERROR: No players created. Returning to welcome.");
+             welcomeScreen();
+             return;
         }
 
-        System.out.println("Creating Map Panel...");
-        mapPanel = new MapPanel(rpg);
-        centerPanel.add(mapPanel, "map");
+        // Set initial player positions and explore around start
+        int startRow = board.getHeight() / 2;
+        int startCol = board.getWidth() / 2;
+        Room startRoom = board.getRoom(startRow, startCol);
+
+        if (startRoom == null || !startRoom.isTraversable()) {
+             System.err.println("ERROR: Start room at [" + startRow + "," + startCol + "] is invalid. Returning to welcome.");
+             welcomeScreen();
+             return;
+        }
+
+        for (Player p : RPG.getPlayers()) {
+            p.setCurrentPos(new int[]{startRow, startCol});
+            p.setWayFacing(0); // Face North initially
+
+            // Player 1 does initial exploration
+            if (RPG.getPlayers().indexOf(p) == 0) {
+                startRoom.setVisited(true); // Mark the start room as visited
+                p.exploreAround(startRow, startCol, board); // Reveal starting area
+            }
+        }
+
+        // Prepare UI for game start
+        Player player1 = RPG.getPlayers().get(0);
+        if (dialoguePanel != null) dialoguePanel.clearDialogue(); // Clear previous messages
+        addDialogue("Welcome, " + player1.getCharacterName() + " the " + player1.getClassName() + "!");
+        addDialogue("You awaken in the " + startRoom.getDescription() + ".");
+        updateGameStatus(player1); // Initial UI update
+
+        // Create and add the MapPanel to the centerPanel's CardLayout
+         System.out.println("Creating Map Panel...");
+         mapPanel = new MapPanel(centralGame); // Create the panel
+         centerPanel.add(mapPanel, "map");     // Add it with the name "map"
 
         System.out.println("Starting game screen...");
-        startGameScreen();
+        startGameScreen(); // Switch view and set up game buttons
         System.out.println("Game initialization complete.");
     }
 
-    // Sets up the UI elements for the main game screen (Unchanged)
+    /** Sets up the UI for the main gameplay screen (map, buttons, labels). */
     private static void startGameScreen() {
-        if (mapPanel == null || rpg == null || RPG.getPlayers().isEmpty()) {
-            System.err.println("Cannot start game screen - essential components missing!");
-            JOptionPane.showMessageDialog(frame, "Error: Game components not ready.", "Error", JOptionPane.ERROR_MESSAGE);
-            welcomeScreen(); return;
-        }
-        RPG player = RPG.getPlayers().get(0);
+         if (mapPanel == null || RPG.getPlayers().isEmpty() || RPG.getCentralGameInstance() == null) {
+              System.err.println("Cannot start game screen - required components are missing!");
+              welcomeScreen();
+              return;
+         }
+        Player player1 = RPG.getPlayers().get(0);
+
+        // Update top panel
         titleLabel.setText("Dungeon Exploration");
-        updatePlayerInfoLabel(player);
-        commentLabel.setText("Use buttons or " + LEFT_ARROW + " " + UP_ARROW + " " + RIGHT_ARROW + " " + DOWN_ARROW + " keys. Press F8 to toggle map.");
+        updatePlayerInfoLabel(player1);
 
-        ArrayList<String> buttonConfigList = new ArrayList<>(); ArrayList<Integer> lengthConfigList = new ArrayList<>();
-        int buttonLength = 110;
+        // Update bottom panel comment
+        commentLabel.setText("Arrows/Buttons move. F8 Map. F9 Legend.");
+
+        // Create gameplay buttons
+        ArrayList<String> buttonCreationList = new ArrayList<>();
+        ArrayList<Integer> lengthCreationList = new ArrayList<>();
+        int buttonLength = 110; // Standard width for move buttons
         for (String label : moveButtonLabels) {
-            buttonConfigList.add(label); buttonConfigList.add(moveButtonColors[0]); buttonConfigList.add(moveButtonColors[1]); lengthConfigList.add(buttonLength);
+            buttonCreationList.add(label);
+            buttonCreationList.add(moveButtonColors[0]); // Normal color
+            buttonCreationList.add(moveButtonColors[1]); // Hover color
+            lengthCreationList.add(buttonLength);
         }
-        makeButtons(buttonConfigList.toArray(new String[0]), lengthConfigList.stream().mapToInt(i -> i).toArray(), "gameplay");
+        makeButtons(buttonCreationList.toArray(new String[0]),
+                    lengthCreationList.stream().mapToInt(i->i).toArray(),
+                    "gameplay");
 
-        showScreen("map");
-        mapPanel.refreshMap();
+        showScreen("map"); // Switch the center panel to the map view
+        mapPanel.refreshMap(); // Initial map draw
         bottomPanel.setVisible(true);
-        frame.getRootPane().requestFocusInWindow();
+        frame.getRootPane().requestFocusInWindow(); // Ensure key bindings work
     }
 
 
     // ==============================================================================================
     // =================== Action Listeners =========================================================
 
-    // Assigns appropriate action listeners based on the button label and screen context (Unchanged from previous)
+    /** Central handler for button clicks, delegating based on screen context. */
     private static void pickActionListener(JButton button, String buttonLabel, String screenContext) {
-        for (java.awt.event.ActionListener al : button.getActionListeners()) { button.removeActionListener(al); } // Remove previous
+        // Clear existing listeners to prevent duplicates if buttons are remade
+        for(ActionListener al : button.getActionListeners()) {
+            button.removeActionListener(al);
+        }
 
         switch (screenContext) {
             case "characterCreator":
                 boolean isClassButton = characterButtonMap.containsKey(buttonLabel);
                 if (isClassButton) {
-                    button.addActionListener(e -> { // Click Class Button
-                        handleClassSelection(buttonLabel); // Refactored selection logic
-                    });
+                    // Lambda expression for class selection action
+                    button.addActionListener(e -> handleClassSelection(buttonLabel));
                 } else if (buttonLabel.equals(doneButtonLabel)) {
-                    button.addActionListener(e -> { // Click Done Button
+                    // Lambda expression for "Done" button action
+                    button.addActionListener(e -> {
                         if (selectedClass == null) {
-                            // *** Play sound and show message if no class is selected ***
-                            RPG.playAudio("audio/action-wrong.wav");
-                            commentLabel.setText("Please select a class first!");
-                            updateCharacterImageAndDetails(null); // Show prompt
+                            RPG.playAudio("audio/action-wrong.wav"); // Play error sound
+                            commentLabel.setText("You must select a class before proceeding!");
+                            updateCharacterImageAndDetails(null); // Clear display
                         } else {
-                            // --- Proceed with player creation ---
+                            // Finalize class/name/icon for the current player
                             int currentPlayerIndex = RPG.getPlayerIndex();
-                            RPG player = RPG.getPlayers().get(currentPlayerIndex);
+                            if (currentPlayerIndex < 0 || currentPlayerIndex >= RPG.getPlayers().size()) {
+                                System.err.println("ERROR: Invalid player index " + currentPlayerIndex + " during character finalization.");
+                                welcomeScreen(); return;
+                            }
+                            Player player = RPG.getPlayers().get(currentPlayerIndex);
 
-                            // 1. Assign Class Stats
-                            RPG.assignClass(currentPlayerIndex, selectedClass);
+                            RPG.assignClass(currentPlayerIndex, selectedClass); // Assign stats etc.
 
-                            // 2. Assign Character Name (using the name displayed when selected)
+                            // Assign cached name and icon
                             String finalName = currentRandomNameMap.get(selectedClass);
-                            if (finalName == null) { // Safety fallback
-                                finalName = CharacterClassInfo.getRandomName(selectedClass);
-                            }
+                            if (finalName == null) finalName = CharacterClassInfo.getRandomName(selectedClass); // Fallback
                             player.setCharacterName(finalName);
-                            System.out.println("Assigned name: " + finalName + " to Player " + (currentPlayerIndex + 1));
 
-                            // 3. Assign Character Icon
                             ImageIcon finalIcon = currentIconForClass.get(selectedClass);
-                            if (finalIcon != null) {
-                                player.setSelectedCharacterIcon(finalIcon);
-                                System.out.println("Stored icon for Player " + (currentPlayerIndex + 1) + " (" + selectedClass + ")");
-                            } else {
-                                System.err.println("Warning: Could not find cached icon for " + selectedClass + " to store.");
-                            }
+                            if (finalIcon != null) player.setSelectedCharacterIcon(finalIcon);
+                            else System.err.println("Warning: Icon was null for selected class: " + selectedClass);
 
-                            RPG.modPlayerIndex(); // Move to next player
-
+                            // Move to next player or start game
+                            RPG.modPlayerIndex(); // Increment player index
                             if (RPG.getPlayerIndex() < RPG.getNumPlayers()) {
-                                characterCreatorScreen(); // Next player
+                                characterCreatorScreen(); // Set up screen for next player
                             } else {
-                                initializeAndStartGame(); // Start game
+                                initializeAndStartGame(); // All players created, start the game
                             }
                         }
                     });
                 }
                 break;
-            case "gameplay": // Gameplay Actions (unchanged)
+
+            case "gameplay":
+                // Assign actions for gameplay buttons
                 switch (buttonLabel) {
                     case "Turn Left":  button.addActionListener(e1 -> handleTurnLeft()); break;
                     case "Forward":    button.addActionListener(e1 -> handleMoveForward()); break;
@@ -467,104 +519,192 @@ public class UIManagement {
                     case "Backward":   button.addActionListener(e1 -> handleMoveBackward()); break;
                 }
                 break;
+            // Add cases for other screen contexts if needed
         }
     }
 
-    // Helper method to handle the logic when a character class button is selected (click or via Space key) (Unchanged from previous)
+    /** Handles selection of a character class button. Updates state and UI. */
     private static void handleClassSelection(String buttonLabel) {
-         selectedClass = buttonLabel;
-         lastDisplayedClass = buttonLabel; // Sync display tracker
-         stickyHoverActive = false; // Turn off sticky hover
-         currentlyStickyHoveredButton = null;
-         commentLabel.setText(buttonLabel + " selected. Press Enter or click 'Done'."); // Updated prompt
+        if (!isCharacterCreatorScreenActive) return; // Only works on char create screen
 
-         // Update button appearances for all buttons
-         updateAllButtonAppearances(); // Update visual state of all buttons based on new selection
+        selectedClass = buttonLabel; // Store the selected class name
+        lastDisplayedClass = buttonLabel; // Update last displayed to prevent flicker if re-hovered
+        commentLabel.setText(buttonLabel + " selected. Press Enter or click 'Done' to confirm.");
 
-         // Update image and details (uses cached name/icon)
-         updateCharacterImageAndDetails(selectedClass);
+        // Update visual state of all buttons (highlight selected, unhighlight others)
+        updateAllButtonAppearances();
+
+        // Update the image and details panel
+        updateCharacterImageAndDetails(selectedClass);
     }
 
-    // Helper to update top-right player info label during gameplay (Unchanged)
-    private static void updatePlayerInfoLabel(RPG player) {
+    /** Updates the player info label in the top panel. */
+    private static void updatePlayerInfoLabel(Player player) {
         if (player == null || !isGameScreenActive) {
-            playerInfoLabel.setText("");
+            playerInfoLabel.setText(""); // Clear if no player or not in game
             return;
         }
+        // Display player name and class
         playerInfoLabel.setText(player.getCharacterName() + " (" + player.getClassName() + ")");
     }
 
+
     // ==============================================================================================
     // =================== Gameplay Action Handlers ================================================
-    // (handleTurnLeft, handleTurnRight, handleMoveForward, handleMoveBackward, handleToggleMap remain UNCHANGED)
-    private static void handleTurnLeft() { if (!isGameScreenActive || mapPanel == null || RPG.getPlayers().isEmpty()) return; RPG player = RPG.getPlayers().get(0); player.turnPlayer(0); updateGameStatus(player); frame.getRootPane().requestFocusInWindow(); }
-    private static void handleTurnRight() { if (!isGameScreenActive || mapPanel == null || RPG.getPlayers().isEmpty()) return; RPG player = RPG.getPlayers().get(0); player.turnPlayer(1); updateGameStatus(player); frame.getRootPane().requestFocusInWindow(); }
-    private static void handleMoveForward() { if (!isGameScreenActive || mapPanel == null || rpg == null || RPG.getPlayers().isEmpty()) return; RPG player = RPG.getPlayers().get(0); if (player.movePlayer(player.getWayFacing(), rpg.map)) {} frame.getRootPane().requestFocusInWindow(); }
-    private static void handleMoveBackward() { if (!isGameScreenActive || mapPanel == null || rpg == null || RPG.getPlayers().isEmpty()) return; RPG player = RPG.getPlayers().get(0); int oppositeDirection = (player.getWayFacing() + 2) % 4; if (player.movePlayer(oppositeDirection, rpg.map)) {} frame.getRootPane().requestFocusInWindow(); }
-    private static void handleToggleMap() { if (!isGameScreenActive || mapPanel == null) return; RPG.toggleMapVisibility(); if (!RPG.getPlayers().isEmpty()) { updateGameStatus(RPG.getPlayers().get(0)); } commentLabel.setText("Map view toggled (Show full: " + RPG.isShowFullMap() + ")"); frame.getRootPane().requestFocusInWindow(); }
+
+    // Movement handlers call Player methods and request focus back to frame for keys
+    private static void handleTurnLeft() {
+        if (!isGameScreenActive || RPG.getPlayers().isEmpty()) return;
+        RPG.getPlayers().get(0).turnPlayer(0); // 0 for left turn
+        frame.getRootPane().requestFocusInWindow(); // Allow continued key input
+    }
+
+    private static void handleTurnRight() {
+        if (!isGameScreenActive || RPG.getPlayers().isEmpty()) return;
+        RPG.getPlayers().get(0).turnPlayer(1); // 1 for right turn
+        frame.getRootPane().requestFocusInWindow();
+    }
+
+    private static void handleMoveForward() {
+        if (!isGameScreenActive || RPG.getPlayers().isEmpty() || RPG.getCentralGameInstance() == null) return;
+        Player player = RPG.getPlayers().get(0);
+        Board board = RPG.getCentralGameInstance().getBoard();
+        player.movePlayer(player.getWayFacing(), board); // Move in the direction player is facing
+        frame.getRootPane().requestFocusInWindow();
+    }
+
+    private static void handleMoveBackward() {
+        if (!isGameScreenActive || RPG.getPlayers().isEmpty() || RPG.getCentralGameInstance() == null) return;
+        Player player = RPG.getPlayers().get(0);
+        Board board = RPG.getCentralGameInstance().getBoard();
+        int oppositeDirection = (player.getWayFacing() + 2) % 4; // Calculate opposite direction
+        player.movePlayer(oppositeDirection, board);
+        frame.getRootPane().requestFocusInWindow();
+    }
+
+    // Toggle Map visibility handled directly in key binding action below
+    // Toggle Legend visibility handled directly in key binding action below
 
 
     // ==============================================================================================
     // =================== Key Binding Setup ========================================================
 
-    // Setup general GAMEPLAY key bindings (F8, arrows for movement) (Unchanged)
+    /** Sets up global key bindings for the application frame. */
     private static void setupKeyBindings() {
+        // Get the input and action maps for the root pane (work when window has focus)
         InputMap inputMap = frame.getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
         ActionMap actionMap = frame.getRootPane().getActionMap();
 
-        // --- Gameplay Keys ---
+        // Define KeyStrokes for gameplay actions
         KeyStroke upKey = KeyStroke.getKeyStroke(KeyEvent.VK_UP, 0);
         KeyStroke downKey = KeyStroke.getKeyStroke(KeyEvent.VK_DOWN, 0);
         KeyStroke leftKey = KeyStroke.getKeyStroke(KeyEvent.VK_LEFT, 0);
         KeyStroke rightKey = KeyStroke.getKeyStroke(KeyEvent.VK_RIGHT, 0);
         KeyStroke f8Key = KeyStroke.getKeyStroke(KeyEvent.VK_F8, 0);
+        KeyStroke f9Key = KeyStroke.getKeyStroke(KeyEvent.VK_F9, 0); // F9 for Legend
 
+        // Map KeyStrokes to action names
         inputMap.put(upKey, "gameplayMoveForward");
         inputMap.put(downKey, "gameplayMoveBackward");
         inputMap.put(leftKey, "gameplayTurnLeft");
         inputMap.put(rightKey, "gameplayTurnRight");
         inputMap.put(f8Key, "gameplayToggleMap");
+        inputMap.put(f9Key, "gameplayToggleLegend"); // Map F9 key
 
-        actionMap.put("gameplayMoveForward", new AbstractAction() { @Override public void actionPerformed(ActionEvent e) { if(isGameScreenActive) handleMoveForward(); } });
-        actionMap.put("gameplayMoveBackward", new AbstractAction() { @Override public void actionPerformed(ActionEvent e) { if(isGameScreenActive) handleMoveBackward(); } });
-        actionMap.put("gameplayTurnLeft", new AbstractAction() { @Override public void actionPerformed(ActionEvent e) { if(isGameScreenActive) handleTurnLeft(); } });
-        actionMap.put("gameplayTurnRight", new AbstractAction() { @Override public void actionPerformed(ActionEvent e) { if(isGameScreenActive) handleTurnRight(); } });
-        actionMap.put("gameplayToggleMap", new AbstractAction() { @Override public void actionPerformed(ActionEvent e) { if(isGameScreenActive) handleToggleMap(); } });
+        // Define Actions corresponding to the action names
+        actionMap.put("gameplayMoveForward", new AbstractAction() {
+            @Override public void actionPerformed(ActionEvent e) { if(isGameScreenActive) handleMoveForward(); }
+        });
+        actionMap.put("gameplayMoveBackward", new AbstractAction() {
+            @Override public void actionPerformed(ActionEvent e) { if(isGameScreenActive) handleMoveBackward(); }
+        });
+        actionMap.put("gameplayTurnLeft", new AbstractAction() {
+            @Override public void actionPerformed(ActionEvent e) { if(isGameScreenActive) handleTurnLeft(); }
+        });
+        actionMap.put("gameplayTurnRight", new AbstractAction() {
+            @Override public void actionPerformed(ActionEvent e) { if(isGameScreenActive) handleTurnRight(); }
+        });
+        actionMap.put("gameplayToggleMap", new AbstractAction() {
+            @Override public void actionPerformed(ActionEvent e) {
+                if(isGameScreenActive) {
+                    RPG.toggleMapVisibility(); // Call static toggle method
+                    commentLabel.setText("Map view toggled (Show full: " + RPG.isShowFullMap() + ")");
+                    frame.getRootPane().requestFocusInWindow(); // Refocus frame
+                 }
+            }
+        });
+         actionMap.put("gameplayToggleLegend", new AbstractAction() { // Action for F9
+            @Override public void actionPerformed(ActionEvent e) {
+                if(isGameScreenActive) {
+                    handleToggleLegend(); // Call the legend toggle method
+                    frame.getRootPane().requestFocusInWindow(); // Refocus frame
+                 }
+            }
+        });
     }
 
-    // Setup CHARACTER CREATOR specific key bindings (Arrows, Space, Enter) (Unchanged from previous)
+    /** Handles toggling the Room Legend visibility in the right-side panel. */
+    private static void handleToggleLegend() {
+        if (dialogueLegendContainer == null || roomLegendPanel == null || RPG.getCentralGameInstance() == null) {
+             System.err.println("Cannot toggle legend: required components missing.");
+             return;
+         }
+
+        CardLayout cl = (CardLayout) dialogueLegendContainer.getLayout();
+        // Check which card is currently visible by checking component visibility
+        boolean isLegendCurrentlyVisible = roomLegendPanel.isVisible();
+
+        if (isLegendCurrentlyVisible) {
+            // Switch back to dialogue
+            cl.show(dialogueLegendContainer, DIALOGUE_CARD);
+            commentLabel.setText("Arrows/Buttons move. F8 Map. F9 Legend."); // Restore default comment
+            System.out.println("Switched to Dialogue Panel.");
+        } else {
+            // Update legend content BEFORE showing it
+            Board currentBoard = RPG.getCentralGameInstance().getBoard();
+            if (currentBoard != null) {
+                roomLegendPanel.updateLegend(currentBoard); // Refresh legend data
+            }
+            // Switch to legend
+            cl.show(dialogueLegendContainer, LEGEND_CARD);
+            commentLabel.setText("Room Legend active. Press F9 to close.");
+             System.out.println("Switched to Legend Panel.");
+        }
+        // Ensure the container panel itself is visible (it should be if game is active)
+        rightSidePanel.setVisible(isGameScreenActive);
+        dialogueLegendContainer.revalidate();
+        dialogueLegendContainer.repaint();
+    }
+
+    /** Sets up key bindings specific to the character creator screen button panel. */
     private static void setupCharacterCreatorKeyBindings() {
+        // Use WHEN_ANCESTOR_OF_FOCUSED_COMPONENT so keys work when panel or buttons have focus
         InputMap inputMap = buttonPanel.getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT);
         ActionMap actionMap = buttonPanel.getActionMap();
 
+        // Define KeyStrokes for navigation and selection
         KeyStroke leftKey = KeyStroke.getKeyStroke(KeyEvent.VK_LEFT, 0);
         KeyStroke rightKey = KeyStroke.getKeyStroke(KeyEvent.VK_RIGHT, 0);
         KeyStroke spaceKey = KeyStroke.getKeyStroke(KeyEvent.VK_SPACE, 0);
         KeyStroke enterKey = KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0);
 
-        // --- Arrow Key Navigation ---
+        // Map keys to action names
         inputMap.put(leftKey, "navigateLeft");
         inputMap.put(rightKey, "navigateRight");
+        inputMap.put(spaceKey, "activateFocusedButton"); // Space to click class buttons
+        inputMap.put(enterKey, "activateDoneButton");   // Enter to click Done
 
+        // Define Actions
         actionMap.put("navigateLeft", new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                if (isCharacterCreatorScreenActive) navigateButtons(-1);
-            }
+            @Override public void actionPerformed(ActionEvent e) { if(isCharacterCreatorScreenActive) navigateButtons(-1); } // -1 for left
         });
         actionMap.put("navigateRight", new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                 if (isCharacterCreatorScreenActive) navigateButtons(1);
-            }
+            @Override public void actionPerformed(ActionEvent e) { if(isCharacterCreatorScreenActive) navigateButtons(1); } // 1 for right
         });
-
-        // --- Space Bar Activation ---
-        inputMap.put(spaceKey, "activateFocusedButton");
         actionMap.put("activateFocusedButton", new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                if (isCharacterCreatorScreenActive) {
+            @Override public void actionPerformed(ActionEvent e) {
+                if(isCharacterCreatorScreenActive) {
+                    // Simulate a click on whichever button currently has focus
                     Component focusedComponent = KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusOwner();
                     if (focusedComponent instanceof JButton && buttonPanel.isAncestorOf(focusedComponent)) {
                         ((JButton) focusedComponent).doClick();
@@ -572,347 +712,388 @@ public class UIManagement {
                 }
             }
         });
-
-        // --- Enter Key for "Done" ---
-        inputMap.put(enterKey, "activateDoneButton");
         actionMap.put("activateDoneButton", new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                if (isCharacterCreatorScreenActive && doneButton != null) {
+            @Override public void actionPerformed(ActionEvent e) {
+                // Specifically click the "Done" button if it exists
+                if(isCharacterCreatorScreenActive && doneButton != null) {
                     doneButton.doClick();
                 }
             }
         });
     }
 
-    // Helper for arrow key navigation between buttons in buttonPanel (Unchanged from previous)
+    /** Handles navigating focus between buttons using left/right arrow keys. */
     private static void navigateButtons(int direction) {
         Component currentFocusOwner = KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusOwner();
-        if (buttonPanel.getComponentCount() == 0) return; // No buttons
+        if (buttonPanel.getComponentCount() == 0) return; // No buttons to navigate
 
         ArrayList<Component> buttons = new ArrayList<>();
-        for(Component comp : buttonPanel.getComponents()){
-             if(comp instanceof JButton){
-                  buttons.add(comp);
-             }
+        for (Component c : buttonPanel.getComponents()) {
+            if (c instanceof JButton) {
+                buttons.add(c); // Get all JButtons in the panel
+            }
         }
-        if (buttons.isEmpty()) return; // No JButtons found
+        if (buttons.isEmpty()) return;
 
         int currentIndex = -1;
+        // Find the index of the currently focused button
         if (currentFocusOwner instanceof JButton && buttons.contains(currentFocusOwner)) {
             currentIndex = buttons.indexOf(currentFocusOwner);
         } else {
-            // If focus is not on a button (or not on one of ours), start from the first/last
-            currentIndex = (direction > 0) ? -1 : buttons.size();
+            // If focus is not on a button, start from beginning/end depending on direction
+             currentIndex = (direction > 0) ? -1 : buttons.size();
         }
 
-        int nextIndex = (currentIndex + direction + buttons.size()) % buttons.size(); // Calculate next index with wrap-around
+        // Calculate the next index, wrapping around
+        int nextIndex = (currentIndex + direction + buttons.size()) % buttons.size();
 
+        // Request focus for the next button
         buttons.get(nextIndex).requestFocusInWindow();
-        // Focus listener now handles highlight and panel update
     }
+
 
    // ==============================================================================================
    // =================== UI Update Methods ========================================================
-   // (updateGameStatus, addDialogue remain UNCHANGED)
-   public static void updateGameStatus(RPG player) { SwingUtilities.invokeLater(() -> { if (player == null || !isGameScreenActive) return; if (statusPanel != null) { statusPanel.updateStatus(player); } if (mapPanel != null) { mapPanel.refreshMap(); } updatePlayerInfoLabel(player); }); }
-   public static void addDialogue(String text) { if (dialoguePanel != null) { dialoguePanel.addDialogue(text); } else { System.err.println("Attempted to add dialogue, but dialoguePanel is null!"); } }
+
+   /** Updates all relevant game status UI elements (HP, Energy, Map, Player Info). */
+   public static void updateGameStatus(Player player) {
+        // Ensure UI updates happen on the Event Dispatch Thread
+        SwingUtilities.invokeLater(() -> {
+            if (player == null || !isGameScreenActive) return; // Do nothing if no player or not in game
+
+            if (statusPanel != null) statusPanel.updateStatus(player);
+            if (playerPanel != null) playerPanel.updatePlayerImage(player);
+            if (mapPanel != null) mapPanel.refreshMap(); // Refresh map view
+            updatePlayerInfoLabel(player); // Update name/class display
+        });
+    }
+
+    /** Adds a message to the dialogue panel. */
+    public static void addDialogue(String text) {
+        if (dialoguePanel != null) {
+            dialoguePanel.addDialogue(text);
+        } else {
+            System.err.println("Error: DialoguePanel is null, cannot add message: " + text);
+        }
+    }
 
 
     // ==============================================================================================
-    // =================== UI Helpers (Button Creation, Hover Effects, Focus) =======================
+    // =================== UI Helpers (Button Creation, Character Details) =========================
 
-    // Creates buttons and adds them to the bottom button panel
-    // *** MODIFIED: FocusAdapter logic now includes foreground color changes ***
-    // *** FIXED: Changed highlightFocusedButton to public static ***
-     private static void makeButtons(String[] stringArray, int[] intArray, String screenContext) {
-         buttonPanel.removeAll(); // Clear previous buttons
-         if (screenContext.equals("characterCreator")) {
-             characterButtonMap.clear();
-             doneButton = null; // Reset done button reference
-         }
-         gbc.gridx = 0; // Reset grid position
-
-         // Store the normal background colors for reference
-         final Map<String, String> normalBgColors = new HashMap<>();
-         final Map<String, String> hoverBgColors = new HashMap<>(); // For Done button hover effect
-         for (int i = 0; i < stringArray.length / 3; i++) {
-             String label = stringArray[i * 3];
-             normalBgColors.put(label, stringArray[i * 3 + 1]);
-             hoverBgColors.put(label, stringArray[i * 3 + 2]); // Store hover color too
-         }
-
-
-         for (int i = 0; i < stringArray.length / 3; i++) {
-             String buttonLabel = stringArray[i * 3];
-             JButton button = new JButton(buttonLabel);
-             button.setPreferredSize(new Dimension(intArray[i], 50));
-             // String normalColorHex = stringArray[i * 3 + 1]; // Use map lookup now
-             // String hoverEffectInfo = stringArray[i * 3 + 2]; // Use map lookup now
-
-             button.setBackground(Color.decode(normalBgColors.get(buttonLabel))); // Set initial BG
-             button.setFont(buttonFont);
-             button.setBorder(defaultBorder); // Start with default border
-             button.setFocusPainted(false); // Disable default focus painting
-
-             // Add listener to handle focus changes (border, text color, info panel)
-             button.addFocusListener(new FocusAdapter() {
-                 @Override
-                 public void focusGained(FocusEvent e) {
-                    if (!isCharacterCreatorScreenActive) return; // Only act on character screen
-                    JButton gainedFocusButton = (JButton) e.getComponent();
-
-                    // 1. Update Border (moved to updateButtonAppearance)
-                    // highlightFocusedButton(gainedFocusButton); // Error reported here previously
-
-                    // 2. Update Info Panel (like mouseEnter)
-                    updateCharacterImageAndDetails(gainedFocusButton.getText());
-
-                    // 3. Update Button Appearance (Border + Foreground Color)
-                    updateButtonAppearance(gainedFocusButton, true); // Indicate it has focus
-                 }
-                 @Override
-                 public void focusLost(FocusEvent e) {
-                     if (!isCharacterCreatorScreenActive) return; // Only act on character screen
-                      JButton lostFocusButton = (JButton) e.getComponent();
-
-                      // 1. Revert Info Panel (like mouseExit)
-                      updateCharacterImageAndDetails(selectedClass);
-
-                      // 2. Update Button Appearance (Border + Foreground Color)
-                      updateButtonAppearance(lostFocusButton, false); // Indicate it lost focus
-                 }
-             });
-
-             // Set initial appearance based on screen context
-             if (screenContext.equals("characterCreator")) {
-                  // Determine initial colors based on selection state
-                  boolean isSelected = buttonLabel.equals(selectedClass);
-                  boolean isDone = buttonLabel.equals(doneButtonLabel);
-
-                  if (isDone) {
-                      button.setForeground(Color.BLACK); // Done button default text
-                      doneButton = button; // Store reference
-                  } else { // Class button
-                      characterButtonMap.put(buttonLabel, button);
-                      button.setForeground(isSelected ? buttonSelectedForegroundColor : buttonDefaultForegroundColor);
-                      button.setBackground(isSelected ? buttonSelectedBackgroundColor : Color.decode(normalBgColors.get(buttonLabel)));
-                  }
-
-             } else { // Gameplay buttons
-                 button.setForeground(Color.BLACK);
-             }
-
-             // Add simplified hover effect (mainly for Done button BG change)
-             addHoverEffect(button, screenContext, normalBgColors, hoverBgColors);
-             pickActionListener(button, buttonLabel, screenContext);
-
-             buttonPanel.add(button, gbc); // Add button to panel
-             gbc.gridx++; // Move to next grid cell
-         }
-         buttonPanel.revalidate();
-         buttonPanel.repaint();
-     }
-
-    // *** FIXED: Changed access modifier to public static ***
-    // Helper to set the border for the currently focused button and remove from others.
-    public static void highlightFocusedButton(JButton focusedButton) {
-        if (focusedButton == null || !isCharacterCreatorScreenActive) return;
-        // Remove focus border from all other buttons in the panel
-        for (Component comp : buttonPanel.getComponents()) {
-             if (comp instanceof JButton && comp != focusedButton) {
-                  // Only reset border if it's not the currently selected class
-                  if (!((JButton) comp).getText().equals(selectedClass)) {
-                       ((JButton) comp).setBorder(defaultBorder);
-                  }
-             }
+    /**
+     * Creates buttons and adds them to the bottom button panel.
+     * @param stringArray Array containing button data: [Label1, NormalColor1, HoverColor1, Label2, ...]
+     * @param intArray Array containing button widths corresponding to labels.
+     * @param screenContext String indicating the context ("characterCreator", "gameplay") for actions/styling.
+     */
+    private static void makeButtons(String[] stringArray, int[] intArray, String screenContext) {
+        buttonPanel.removeAll(); // Clear previous buttons
+        if (screenContext.equals("characterCreator")) {
+            characterButtonMap.clear(); // Reset map for class buttons
+            doneButton = null;
         }
-        // Apply focus border to the target button
-        focusedButton.setBorder(focusBorder);
+        gbc.gridx = 0; // Start adding buttons from the left
+
+        // Pre-parse colors for efficiency (optional, but cleaner)
+        final Map<String, String> normalBgColors = new HashMap<>();
+        final Map<String, String> hoverBgColors = new HashMap<>();
+        for (int i = 0; i < stringArray.length / 3; i++) {
+             String label = stringArray[i*3];
+             normalBgColors.put(label, stringArray[i*3 + 1]);
+             hoverBgColors.put(label, stringArray[i*3 + 2]);
+        }
+
+        for (int i = 0; i < stringArray.length / 3; i++) {
+            String buttonLabel = stringArray[i * 3];
+            JButton button = new JButton(buttonLabel);
+
+            // --- Basic Styling ---
+            button.setPreferredSize(new Dimension(intArray[i], 50)); // Set size
+            button.setBackground(Color.decode(normalBgColors.get(buttonLabel))); // Normal BG
+            button.setFont(buttonFont);
+            button.setBorder(defaultBorder); // Default border
+            button.setFocusPainted(false); // Don't draw default focus rectangle
+
+             // --- Focus Listener (for Character Creator) ---
+            button.addFocusListener(new FocusAdapter() {
+                @Override public void focusGained(FocusEvent e) {
+                     if (!isCharacterCreatorScreenActive) return; // Only apply in char creator
+                     JButton gainedFocusButton = (JButton) e.getComponent();
+                     // Update image/details when a class button gains focus (but not Done)
+                     if (!gainedFocusButton.getText().equals(doneButtonLabel)) {
+                          updateCharacterImageAndDetails(gainedFocusButton.getText());
+                     }
+                     updateButtonAppearance(gainedFocusButton, true); // Highlight focused button
+                }
+                @Override public void focusLost(FocusEvent e) {
+                     if (!isCharacterCreatorScreenActive) return;
+                     JButton lostFocusButton = (JButton) e.getComponent();
+                     // When focus leaves, update display based on the *selected* class (if any)
+                     updateCharacterImageAndDetails(selectedClass);
+                     updateButtonAppearance(lostFocusButton, false); // Remove highlight unless selected
+                }
+            });
+
+            // --- Context-Specific Setup ---
+            if (screenContext.equals("characterCreator")) {
+                 boolean isSelected = buttonLabel.equals(selectedClass);
+                 boolean isDoneButton = buttonLabel.equals(doneButtonLabel);
+
+                 if (isDoneButton) {
+                     button.setForeground(Color.BLACK); // Done button text color
+                     doneButton = button; // Store reference to Done button
+                 } else {
+                     // This is a class button
+                     characterButtonMap.put(buttonLabel, button); // Store reference
+                     // Set initial appearance based on selection state
+                     button.setForeground(isSelected ? buttonSelectedForegroundColor : buttonDefaultForegroundColor);
+                     button.setBackground(isSelected ? buttonSelectedBackgroundColor : Color.decode(normalBgColors.get(buttonLabel)));
+                 }
+            } else { // Gameplay or other screens
+                button.setForeground(Color.BLACK); // Default text color for gameplay buttons
+            }
+
+            // Add hover effects (primarily for Done button background)
+            addHoverEffect(button, screenContext, normalBgColors, hoverBgColors);
+            // Assign the correct action listener based on context
+            pickActionListener(button, buttonLabel, screenContext);
+
+            // Add button to the panel
+            buttonPanel.add(button, gbc);
+            gbc.gridx++; // Move to next grid position
+        }
+
+        buttonPanel.revalidate(); // Update layout
+        buttonPanel.repaint(); // Redraw panel
     }
 
-    // Updates border and foreground based on focus and selection status.
+    /** Updates the visual appearance (border, text color, background) of a single button. */
     private static void updateButtonAppearance(JButton button, boolean hasFocus) {
-       if (button == null || !isCharacterCreatorScreenActive) return; // Only act on character screen
-       String buttonText = button.getText();
-       boolean isSelected = buttonText.equals(selectedClass);
-       boolean isDone = buttonText.equals(doneButtonLabel);
+        if (button == null || !isCharacterCreatorScreenActive) return;
 
-       // --- Set Border ---
-       if (hasFocus) {
-           button.setBorder(focusBorder);
-       } else {
-           // Selected button keeps its border even when losing focus temporarily
-           if (!isSelected) {
-                button.setBorder(defaultBorder);
-           }
-       }
+        String buttonText = button.getText();
+        boolean isSelected = buttonText.equals(selectedClass);
+        boolean isDoneButton = buttonText.equals(doneButtonLabel);
 
-       // --- Set Foreground Color ---
-       if (isDone) {
-           button.setForeground(Color.BLACK); // Done button always has black text
-       } else { // Class Buttons
-           if (isSelected) {
-               button.setForeground(buttonSelectedForegroundColor); // Selected is always white text
-           } else if (hasFocus) {
-               button.setForeground(buttonHoverForegroundColor); // Focused (not selected) is red
-           } else {
-               button.setForeground(buttonDefaultForegroundColor); // Default (not focused, not selected) is white
-           }
-       }
+        // --- Border ---
+        button.setBorder(hasFocus ? focusBorder : defaultBorder); // Blue border if focused, gray otherwise
+        // Keep border blue if selected even when losing focus (visual cue)
+        if (isSelected && !isDoneButton) {
+            button.setBorder(focusBorder);
+        }
 
-       // --- Set Background Color --- (Only changes on selection or Done button hover)
-       if (isSelected && !isDone) {
-            button.setBackground(buttonSelectedBackgroundColor);
-       } else if (!isDone) { // Unselected Class Buttons
-           // Retrieve normal background color (requires map access or passing config)
-           // For simplicity, assuming characterButtonColors[0] is the normal BG
-           button.setBackground(Color.decode(characterButtonColors[0]));
-       }
-       // Note: Done button background hover is handled in addHoverEffect now.
+
+        // --- Foreground (Text Color) ---
+        if (isDoneButton) {
+            button.setForeground(Color.BLACK); // Done button always black text
+        } else {
+            // Class Buttons
+            if (isSelected) {
+                button.setForeground(buttonSelectedForegroundColor); // White text if selected
+            } else if (hasFocus) {
+                 button.setForeground(buttonHoverForegroundColor); // Red text if focused but not selected
+            } else {
+                button.setForeground(buttonDefaultForegroundColor); // Default white text
+            }
+        }
+
+        // --- Background Color ---
+        if (isSelected && !isDoneButton) {
+            button.setBackground(buttonSelectedBackgroundColor); // Black background if selected
+        } else if (!isDoneButton){
+             // Reset class button background to normal if not selected
+             button.setBackground(Color.decode(characterButtonColors[0]));
+        }
+        // Done button background handled by hover effect primarily
     }
 
-    // Helper to update all button appearances at once (e.g., after selection)
+    /** Iterates through all buttons and updates their appearance. */
     private static void updateAllButtonAppearances() {
+         if (!isCharacterCreatorScreenActive) return;
         Component currentFocusOwner = KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusOwner();
-        for (Component comp : buttonPanel.getComponents()) {
-            if (comp instanceof JButton) {
-                // Use the helper to update border and foreground based on focus and selection
-                updateButtonAppearance((JButton) comp, comp == currentFocusOwner);
+        for (Component c : buttonPanel.getComponents()) {
+            if (c instanceof JButton) {
+                updateButtonAppearance((JButton) c, c == currentFocusOwner); // Update based on focus/selection
             }
         }
     }
 
+    /** Adds mouse hover effects (currently only affects Done button background). */
+    private static void addHoverEffect(JButton button, String screenContext,
+                                        final Map<String, String> normalBgColors,
+                                        final Map<String, String> hoverBgColors) {
+        // Only apply hover effect logic needed for character creator Done button
+        if (!screenContext.equals("characterCreator")) return;
 
-    // Adds mouse hover effects to a button
-    // *** MODIFIED: Simplified, mainly for Done button BG hover ***
-    private static void addHoverEffect(JButton button, String screenContext, final Map<String, String> normalBgColors, final Map<String, String> hoverBgColors) {
         button.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseEntered(MouseEvent e) {
-                if (!isCharacterCreatorScreenActive) return; // Only act on character screen
-
-                // Request focus, the focus listener will handle appearance updates (border, text color)
-                button.requestFocusInWindow();
-
-                // Specific background hover for Done button
-                if (button.getText().equals(doneButtonLabel)) {
-                    button.setBackground(Color.decode(hoverBgColors.get(doneButtonLabel))); // Use hover BG for Done
-                }
+            @Override public void mouseEntered(MouseEvent e) {
+                 if (!isCharacterCreatorScreenActive) return;
+                 // If the button isn't already focused, request focus on hover
+                 if (!button.hasFocus()) {
+                      button.requestFocusInWindow();
+                 }
+                 // Special background hover for Done button
+                 if (button.getText().equals(doneButtonLabel)) {
+                     button.setBackground(Color.decode(hoverBgColors.get(doneButtonLabel)));
+                 }
+                 // Note: Focus listener handles foreground color changes on hover for class buttons
             }
-
-            @Override
-            public void mouseExited(MouseEvent e) {
-                if (!isCharacterCreatorScreenActive) return; // Only act on character screen
-
-                // Focus listener (focusLost) handles reverting appearance if focus actually moves.
-                // Only handle specific background reversion for Done button here.
-                if (button.getText().equals(doneButtonLabel)) {
-                    button.setBackground(Color.decode(normalBgColors.get(doneButtonLabel))); // Revert Done BG
-                }
+            @Override public void mouseExited(MouseEvent e) {
+                 if (!isCharacterCreatorScreenActive) return;
+                 // Reset Done button background on exit
+                 if (button.getText().equals(doneButtonLabel)) {
+                     button.setBackground(Color.decode(normalBgColors.get(doneButtonLabel)));
+                 }
+                 // Note: Focus listener handles foreground color reset when focus is lost
             }
         });
     }
 
+    /** Loads a character image for the given class name. Selects randomly if multiple exist. */
+    private static ImageIcon loadCharacterImage(String className) {
+        if (className == null || className.trim().isEmpty() || className.equals(doneButtonLabel)) {
+            return null; // No image for null, empty, or "Done"
+        }
 
-    // --- Load Character Image --- (Unchanged)
-     private static ImageIcon loadCharacterImage(String className) { if (className == null || className.trim().isEmpty()) return null; List<URL> foundImageUrls = new ArrayList<>(); String baseImagePath = "images/character-" + RPG.currentImageSet + "-" + className.toLowerCase(); for (int i = 1; i <= 5; i++) { String imagePath = baseImagePath + i + ".jpg"; try { URL imageURL = UIManagement.class.getClassLoader().getResource(imagePath); if (imageURL != null) { foundImageUrls.add(imageURL); System.out.println("Found image: " + imagePath); } } catch (Exception e) { System.err.println("Error checking for resource: " + imagePath + " - " + e.getMessage()); } } if (foundImageUrls.isEmpty()) { String imagePath = baseImagePath + ".jpg"; try { URL imageURL = UIManagement.class.getClassLoader().getResource(imagePath); if (imageURL != null) { foundImageUrls.add(imageURL); System.out.println("Found base image: " + imagePath); } } catch (Exception e) { System.err.println("Error checking for resource: " + imagePath + " - " + e.getMessage()); } } if (!foundImageUrls.isEmpty()) { URL selectedUrl = foundImageUrls.get(random.nextInt(foundImageUrls.size())); try { ImageIcon icon = new ImageIcon(selectedUrl); if (icon.getImageLoadStatus() == MediaTracker.COMPLETE) { System.out.println("Successfully loaded image icon from: " + selectedUrl); return icon; } else { System.err.println("Error: ImageIcon status not complete for " + selectedUrl); return null; } } catch (Exception e) { System.err.println("Exception creating ImageIcon from URL: " + selectedUrl + " - " + e.getMessage()); return null; } } else { System.out.println("No images found for class '" + className + "' in set '" + RPG.currentImageSet + "'."); return null; } }
+        // Try to find images named like: images/character-<set>-<class><number>.jpg
+        List<URL> foundImageURLs = new ArrayList<>();
+        String baseImagePath = "images/character-" + RPG.currentImageSet + "-" + className.toLowerCase();
+
+        // Look for numbered images (e.g., -knight1.jpg, -knight2.jpg)
+        for (int i = 1; i <= 5; i++) { // Check for up to 5 numbered images
+            String imagePath = baseImagePath + i + ".jpg";
+            try {
+                URL imageURL = UIManagement.class.getClassLoader().getResource(imagePath);
+                if (imageURL != null) {
+                    foundImageURLs.add(imageURL);
+                }
+            } catch (Exception e) { /* Ignore exceptions during resource checking */ }
+        }
+
+        // If no numbered images found, look for a single base image (e.g., -knight.jpg)
+        if (foundImageURLs.isEmpty()) {
+            String imagePath = baseImagePath + ".jpg";
+             try {
+                 URL imageURL = UIManagement.class.getClassLoader().getResource(imagePath);
+                 if (imageURL != null) {
+                     foundImageURLs.add(imageURL);
+                 }
+            } catch (Exception e) { /* Ignore */ }
+        }
+
+        // If images were found, pick one randomly and load it
+        if (!foundImageURLs.isEmpty()) {
+            URL selectedURL = foundImageURLs.get(random.nextInt(foundImageURLs.size()));
+            try {
+                ImageIcon icon = new ImageIcon(selectedURL);
+                // Check if the image loaded correctly
+                if (icon.getImageLoadStatus() == MediaTracker.COMPLETE) {
+                    return icon;
+                } else {
+                     System.err.println("Image load status not complete for: " + selectedURL);
+                     return null; // Image data wasn't fully loaded
+                }
+            } catch (Exception e) {
+                System.err.println("Exception loading image icon from URL " + selectedURL + ": " + e.getMessage());
+                return null; // Error during loading
+            }
+        } else {
+            System.err.println("No image found for class: " + className + " with image set: " + RPG.currentImageSet);
+            return null; // No suitable image found
+        }
+    }
 
 
-    // --- Update Image, Details, and Name --- (Unchanged from previous)
-     private static void updateCharacterImageAndDetails(String label) {
+    /** Updates the character image and details pane based on the focused/selected class. */
+    private static void updateCharacterImageAndDetails(String label) {
+         if (!isCharacterCreatorScreenActive) return; // Only run on char create
+
          ImageIcon iconToShow = null;
-         String classLabelForDisplay = label; // Initially assume we show the label provided (hovered/focused)
+         String classForDetails = label; // Start with the label passed (usually from focus gain)
          String randomNameToDisplay = null;
 
-         // If label is null, it means we should show the selected class (or default prompt)
-         if (classLabelForDisplay == null) {
-              classLabelForDisplay = selectedClass; // Revert to selected class if one exists
-         }
+        // Determine the actual class to display (could be selected, or focused)
+        if (classForDetails == null) classForDetails = selectedClass; // If label is null, use selected class
+        if (doneButtonLabel.equals(classForDetails)) classForDetails = selectedClass; // If focus is on Done, show selected
 
-         // If label is the "Done" button, show the selected class instead
-         if (doneButtonLabel.equals(classLabelForDisplay)) {
-              classLabelForDisplay = selectedClass;
-         }
+        // Check if it's a valid class button label
+        if (classForDetails != null && characterButtonMap.containsKey(classForDetails))
+        {
+            // --- Image Loading/Caching ---
+            boolean needNewImage = !classForDetails.equals(lastDisplayedClass) || !currentIconForClass.containsKey(classForDetails);
+            if (needNewImage) {
+                 iconToShow = loadCharacterImage(classForDetails);
+                 currentIconForClass.put(classForDetails, iconToShow); // Cache the loaded icon (or null)
+            } else {
+                 iconToShow = currentIconForClass.get(classForDetails); // Use cached icon
+            }
 
-
-         // 2. Load/Retrieve Image and Name based on classLabelForDisplay
-         if (classLabelForDisplay != null && characterButtonMap.containsKey(classLabelForDisplay)) { // Ensure it's a valid class
-             // --- Image ---
-             boolean needsNewImage = !classLabelForDisplay.equals(lastDisplayedClass) || !currentIconForClass.containsKey(classLabelForDisplay);
-             if (needsNewImage) {
-                 iconToShow = loadCharacterImage(classLabelForDisplay);
-                 currentIconForClass.put(classLabelForDisplay, iconToShow); // Cache (even if null)
+            // --- Name Loading/Caching ---
+             boolean needNewName = !currentRandomNameMap.containsKey(classForDetails);
+             if (needNewName) {
+                 randomNameToDisplay = CharacterClassInfo.getRandomName(classForDetails);
+                 currentRandomNameMap.put(classForDetails, randomNameToDisplay); // Cache the name
              } else {
-                 iconToShow = currentIconForClass.get(classLabelForDisplay);
+                  randomNameToDisplay = currentRandomNameMap.get(classForDetails); // Use cached name
              }
-
-              // --- Name ---
-              boolean needsNewName = !currentRandomNameMap.containsKey(classLabelForDisplay);
-              if (needsNewName) {
-                  randomNameToDisplay = CharacterClassInfo.getRandomName(classLabelForDisplay);
-                  currentRandomNameMap.put(classLabelForDisplay, randomNameToDisplay); // Cache the name
-                  System.out.println("Generated and cached name: " + randomNameToDisplay + " for: " + classLabelForDisplay);
-              } else {
-                  randomNameToDisplay = currentRandomNameMap.get(classLabelForDisplay);
-                  System.out.println("Using cached name: " + randomNameToDisplay + " for: " + classLabelForDisplay);
-              }
-              lastDisplayedClass = classLabelForDisplay; // Track what was last processed
-
+             lastDisplayedClass = classForDetails; // Update the last class fully processed
          } else {
-             // No valid class selected/hovered/focused -> No image or name to show, revert lastDisplayedClass
+             // No valid class selected or focused, show defaults
              iconToShow = null;
              randomNameToDisplay = null;
-             lastDisplayedClass = null; // Reset tracker if showing default
-             classLabelForDisplay = null; // Ensure we hit the default HTML below
+             lastDisplayedClass = null; // Reset last displayed
+             classForDetails = null; // Ensure classForDetails is null for HTML generation
          }
 
-
-         // 3. Display the determined icon (or placeholder)
+         // --- Update Image Label ---
          if (iconToShow != null) {
              characterImageLabel.setIcon(iconToShow);
-             characterImageLabel.setText("");
+             characterImageLabel.setText(""); // Clear any placeholder text
          } else {
              characterImageLabel.setIcon(null);
-             characterImageLabel.setText("<html><center>Select a Class</center></html>");
+             characterImageLabel.setText("<html><center>Select a Class<br>(Image not found?)</center></html>");
              characterImageLabel.setForeground(Color.DARK_GRAY);
          }
          characterImageLabel.revalidate();
          characterImageLabel.repaint();
 
-
-         // 4. Update the Text Details Pane
+         // --- Update Details Pane ---
          String detailsHtml;
-         if (classLabelForDisplay != null) { // Check again after potential reset above
-              CharacterClassInfo.BaseStats stats = CharacterClassInfo.getStats(classLabelForDisplay);
-              if (stats != null) {
-                   detailsHtml = "<html><body><h2 class='classname'>" + classLabelForDisplay + "</h2><table>" +
-                                 "<tr><th>Stat</th><th>Value</th></tr>" +
-                                 "<tr><td>Max HP</td><td>" + stats.MAX_HP + "</td></tr>" +
-                                 "<tr><td>Max Energy</td><td>" + stats.MAX_ENERGY + "</td></tr>" +
-                                 "<tr><td>Vigor</td><td>" + stats.VIG + "</td></tr>" +
-                                 "<tr><td>Defense</td><td>" + stats.DEF + "</td></tr>" +
-                                 "<tr><td>Strength</td><td>" + stats.STR + "</td></tr>" +
-                                 "<tr><td>Dexterity</td><td>" + stats.DEX + "</td></tr>" +
-                                 "<tr><td>Agility</td><td>" + stats.AGT + "</td></tr>" +
-                                 "<tr><td>Luck</td><td>" + stats.LUCK + "</td></tr>" +
-                                 "</table>" +
-                                 "<p class='charname'>" + randomNameToDisplay + "</p>" +
-                                 "</body></html>";
-              } else {
-                   detailsHtml = "<html><body><h3>Error</h3><p>Could not find stats for " + classLabelForDisplay + ".</p></body></html>";
-              }
+         if (classForDetails != null) {
+             CharacterClassInfo.BaseStats stats = CharacterClassInfo.getStats(classForDetails);
+             if (stats != null) {
+                 // Build HTML string for stats table
+                 StringBuilder htmlBuilder = new StringBuilder("<html><body>");
+                 htmlBuilder.append("<h2 class='classname'>").append(classForDetails).append("</h2>");
+                 htmlBuilder.append("<table>");
+                 htmlBuilder.append("<tr><th>Stat</th><th>Value</th></tr>");
+                 htmlBuilder.append("<tr><td>Max HP</td><td>").append(stats.MAX_HP).append("</td></tr>");
+                 htmlBuilder.append("<tr><td>Max Energy</td><td>").append(stats.MAX_ENERGY).append("</td></tr>");
+                 htmlBuilder.append("<tr><td>Vigor</td><td>").append(stats.VIG).append("</td></tr>");
+                 htmlBuilder.append("<tr><td>Defense</td><td>").append(stats.DEF).append("</td></tr>");
+                 htmlBuilder.append("<tr><td>Strength</td><td>").append(stats.STR).append("</td></tr>");
+                 htmlBuilder.append("<tr><td>Dexterity</td><td>").append(stats.DEX).append("</td></tr>");
+                 htmlBuilder.append("<tr><td>Agility</td><td>").append(stats.AGT).append("</td></tr>");
+                 htmlBuilder.append("<tr><td>Luck</td><td>").append(stats.LUCK).append("</td></tr>");
+                 htmlBuilder.append("</table>");
+                 if (randomNameToDisplay != null) {
+                     htmlBuilder.append("<p class='charname'>").append(randomNameToDisplay).append("</p>");
+                 }
+                 htmlBuilder.append("</body></html>");
+                 detailsHtml = htmlBuilder.toString();
+             } else {
+                 detailsHtml = "<html><body><h3>Error</h3><p>Class stats not found for " + classForDetails + ".</p></body></html>";
+             }
          } else {
-              // Default prompt
-              detailsHtml = "<html><body><h3 style='margin-top: 50px;'>Class Details</h3><p style='text-align:center; padding: 10px;'>" +
-                            "Hover over or use arrow keys to navigate class buttons below." + "</p></body></html>"; // Slightly updated prompt
+             // Default message when no class is selected/focused
+             detailsHtml = "<html><body><h3 style='text-align:center;'>Class Details</h3><p style='text-align:center;'>Hover over or use arrow keys to select a class.<br>Press Space or Enter to confirm.</p></body></html>";
          }
+
          classDetailsPane.setText(detailsHtml);
-         classDetailsPane.setCaretPosition(0);
-
-         characterDescPanel.revalidate();
+         classDetailsPane.setCaretPosition(0); // Scroll to top
+         characterDescPanel.revalidate(); // Revalidate container panel
          characterDescPanel.repaint();
-     }
-
+    }
 
 } // End of UIManagement class
